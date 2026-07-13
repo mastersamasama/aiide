@@ -277,6 +277,12 @@ const I18N = {
     'causal.withinNoise': 'within noise — CIs overlap',
     'causal.reason.suite': 'suite differs', 'causal.reason.model': 'model differs', 'causal.reason.runtime': 'runtime differs',
     'compare.metric': 'metric', 'compare.caveat': 'paired on identical tasks; with small n, differences within overlapping CIs are noise.',
+    'cmp.delta': 'Δ (B−A)', 'cmp.reportTitle': 'linked upgrade report',
+    'cmp.pickReport': '— pick a report —', 'cmp.noReport': 'no upgrade report yet — run `aiide upgrade eval` to generate one',
+    'cmp.reportNote': 'a statistical verdict needs the upgrade-eval cohort (N paired runs); a single pair only supports the deltas below',
+    'cmp.cohortFrame': 'these two experiments belong to upgrade cohort',
+    'cmp.tally': 'per-task composite', 'cmp.improved': 'improved', 'cmp.regressed': 'regressed', 'cmp.flat': 'flat',
+    'cmp.ciDisjoint': 'CI disjoint · 1-vs-1', 'cmp.ciDisjointTip': 'the two Wilson CIs do not overlap — a conservative 1-vs-1 signal the success rates differ (NOT a cohort verdict; run upgrade eval for that)',
     'na': 'n/a', 'partial': 'partial dims',
     'panel.prompt': 'prompt (what this run was asked)',
     'ctx.help.title': 'ⓘ what do these numbers mean?',
@@ -457,6 +463,12 @@ const I18N = {
     'causal.withinNoise': '噪声范围内——CI 重叠',
     'causal.reason.suite': 'suite 不同', 'causal.reason.model': 'model 不同', 'causal.reason.runtime': 'runtime 不同',
     'compare.metric': '指标', 'compare.caveat': '按相同任务配对；样本量小时，CI 重叠范围内的差异视为噪声。',
+    'cmp.delta': 'Δ (B−A)', 'cmp.reportTitle': '关联 upgrade 报告',
+    'cmp.pickReport': '— 选一份报告 —', 'cmp.noReport': '暂无 upgrade 报告——跑 `aiide upgrade eval` 生成',
+    'cmp.reportNote': '统计判定需要 upgrade-eval 的 cohort（N 对配对）；单一配对只支撑下方的 delta',
+    'cmp.cohortFrame': '这两个实验属于 upgrade cohort',
+    'cmp.tally': '逐题综合分', 'cmp.improved': '改善', 'cmp.regressed': '退步', 'cmp.flat': '持平',
+    'cmp.ciDisjoint': 'CI 不重叠 · 1-vs-1', 'cmp.ciDisjointTip': '两组 Wilson CI 不重叠——保守的 1-vs-1 信号，表示成功率确有差异（不是 cohort verdict；要严谨判定请跑 upgrade eval）',
     'na': 'n/a', 'partial': '部分维度',
     'panel.runtime': '被测 runtime',
     'rt.model': '模型', 'rt.endpoint': 'LLM 端点', 'rt.service': '服务命令',
@@ -1072,33 +1084,65 @@ function pickCompare(id) {
 async function viewCompare(idA, idB) {
   const [a, b] = await Promise.all([api('experiments/' + encodeURIComponent(idA)), api('experiments/' + encodeURIComponent(idB))]);
   const taskIds = [...new Set([...Object.keys(a.tasks), ...Object.keys(b.tasks)])];
+  const upgrades = await api('upgrades').catch(() => []); // Part C: picker to embed a real cohort report
   const d3 = v => v == null ? t('na') : v.toFixed(3);
-  const row = (label, fa, fb, better) => {
+  const num = (raw, txt) => ({ raw, txt });
+  // Δ (B−A) cell: honest point delta, colored by whether it improved (better='high'→up good; 'low'→down good).
+  const dCell = (ra, rb, better, sig = '') => {
+    if (ra == null || rb == null) return '<td></td>';
+    const d = rb - ra;
+    const good = d === 0 ? null : better === 'low' ? d < 0 : better === 'high' ? d > 0 : null;
+    const col = good == null ? 'var(--dim)' : good ? 'var(--ok)' : 'var(--err)';
+    const mag = Math.abs(d) < 1 ? d.toFixed(3) : Math.abs(d) < 1000 ? d.toFixed(1) : String(Math.round(d));
+    const v = d === 0 ? '±0' : (d > 0 ? '+' : '') + mag;
+    return `<td style="color:${col};white-space:nowrap">${v}${sig ? ' ' + sig : ''}</td>`;
+  };
+  const row = (label, fa, fb, better, sig = '') => {
     const va = fa(), vb = fb();
     const hl = (x, y) => (better && x != null && y != null && x !== y)
       ? (better === 'high' ? (x > y) : (x < y)) ? 'style="color:var(--ok)"' : 'style="color:var(--dim)"' : '';
-    return `<tr><td class="muted">${label}</td><td ${hl(va?.raw, vb?.raw)}>${va?.txt ?? va}</td><td ${hl(vb?.raw, va?.raw)}>${vb?.txt ?? vb}</td></tr>`;
+    return `<tr><td class="muted">${label}</td><td ${hl(va?.raw, vb?.raw)}>${va?.txt ?? va}</td><td ${hl(vb?.raw, va?.raw)}>${vb?.txt ?? vb}</td>${dCell(va?.raw, vb?.raw, better, sig)}</tr>`;
   };
-  const num = (raw, txt) => ({ raw, txt });
+  // improved/regressed/flat tally over per-task composite deltas (higher = better)
+  const tally = deltaTally(taskIds.map(tid => {
+    const ta = a.tasks[tid], tb = b.tasks[tid];
+    return (ta?.composite != null && tb?.composite != null) ? tb.composite - ta.composite : null;
+  }));
   $app.innerHTML = `
     <p><a href="#experiments">${t('back.experiments')}</a></p>
     <h2 style="margin:6px 0">${t('compare.title')}</h2>
     ${causalCompareRow(a, b)}
+    <div class="panel">
+      <b>${t('cmp.reportTitle')}</b>
+      ${upgrades.length
+        ? `<select class="md-in" style="margin-left:8px" onchange="renderCmpReport(this.value)">
+             <option value="">${t('cmp.pickReport')}</option>
+             ${upgrades.map(u => `<option value="${fmt.esc(u.compareId)}">${fmt.esc(u.arms?.new ?? '?')} vs ${fmt.esc(u.arms?.old ?? '?')} · ${fmt.t(u.createdAt)}</option>`).join('')}
+           </select>`
+        : `<span class="muted" style="margin-left:8px">${t('cmp.noReport')}</span>`}
+      <p class="muted" style="font-size:12px;margin:6px 0 0">${t('cmp.reportNote')}</p>
+    </div>
+    <div id="cmp-report"></div>
+    <div class="muted" style="margin:12px 0 2px">${t('cmp.tally')}: <span style="color:var(--ok)">${tally.improved} ${t('cmp.improved')}</span> · <span style="color:var(--err)">${tally.regressed} ${t('cmp.regressed')}</span> · ${tally.flat} ${t('cmp.flat')}</div>
     <table><thead><tr><th>${t('compare.metric')}</th>
       <th class="cmp-a">${fmt.esc(a.suiteName)} · ${fmt.esc(a.model)}<br><span class="muted">${fmt.t(a.createdAt)} · ${fmt.esc(a.runtime ?? 'claude-code')}</span></th>
-      <th class="cmp-b">${fmt.esc(b.suiteName)} · ${fmt.esc(b.model)}<br><span class="muted">${fmt.t(b.createdAt)} · ${fmt.esc(b.runtime ?? 'claude-code')}</span></th></tr></thead>
+      <th class="cmp-b">${fmt.esc(b.suiteName)} · ${fmt.esc(b.model)}<br><span class="muted">${fmt.t(b.createdAt)} · ${fmt.esc(b.runtime ?? 'claude-code')}</span></th>
+      <th>${t('cmp.delta')}</th></tr></thead>
     <tbody>
       ${row('SkillScore', () => num(a.summary.composite, d3(a.summary.composite)), () => num(b.summary.composite, d3(b.summary.composite)), 'high')}
       ${['C', 'P', 'R', 'H'].map(k => row(t('card.' + k), () => num(a.summary[k], d3(a.summary[k])), () => num(b.summary[k], d3(b.summary[k])), 'high')).join('')}
       ${taskIds.map(tid => {
         const ta = a.tasks[tid], tb = b.tasks[tid];
+        // 1-vs-1 significance flag: two Wilson CIs don't overlap (honest, low-authority — not a cohort verdict)
+        const sig = wilsonCisDisjoint(ta?.wilsonCi, tb?.wilsonCi)
+          ? `<span class="badge warn" title="${t('cmp.ciDisjointTip')}">${t('cmp.ciDisjoint')}</span>` : '';
         return `
-          <tr><td colspan="3" style="background:var(--panel2)">
+          <tr><td colspan="4" style="background:var(--panel2)">
             <details><summary style="cursor:pointer"><b>${fmt.esc(tid)}</b> <span class="muted" style="font-size:11px">▸ ${t('compare.showQuestion')}</span></summary>
               <div class="muted" style="margin-top:6px;white-space:pre-wrap">${fmt.esc(ta?.prompt ?? tb?.prompt ?? '')}</div>
             </details></td></tr>
           ${row(t('th.composite'), () => num(ta?.composite, d3(ta?.composite)), () => num(tb?.composite, d3(tb?.composite)), 'high')}
-          ${row(t('card.successRate'), () => num(ta?.successRate, ta ? fmt.pct(ta.successRate) + ` <span class="muted">CI[${ta.wilsonCi.lo.toFixed(2)},${ta.wilsonCi.hi.toFixed(2)}]</span>` : t('na')), () => num(tb?.successRate, tb ? fmt.pct(tb.successRate) + ` <span class="muted">CI[${tb.wilsonCi.lo.toFixed(2)},${tb.wilsonCi.hi.toFixed(2)}]</span>` : t('na')), 'high')}
+          ${row(t('card.successRate'), () => num(ta?.successRate, ta ? fmt.pct(ta.successRate) + ` <span class="muted">CI[${ta.wilsonCi.lo.toFixed(2)},${ta.wilsonCi.hi.toFixed(2)}]</span>` : t('na')), () => num(tb?.successRate, tb ? fmt.pct(tb.successRate) + ` <span class="muted">CI[${tb.wilsonCi.lo.toFixed(2)},${tb.wilsonCi.hi.toFixed(2)}]</span>` : t('na')), 'high', sig)}
           ${row(t('card.activation'), () => num(ta?.activationRate, ta?.activationRate == null ? t('na') : fmt.pct(ta.activationRate)), () => num(tb?.activationRate, tb?.activationRate == null ? t('na') : fmt.pct(tb.activationRate)), 'high')}
           ${row(t('th.time'), () => num(ta?.efficiency.meanDurationMs, ta ? fmt.ms(ta.efficiency.meanDurationMs) : t('na')), () => num(tb?.efficiency.meanDurationMs, tb ? fmt.ms(tb.efficiency.meanDurationMs) : t('na')), 'low')}
           ${row(t('card.estCost'), () => num(ta?.efficiency.meanCostUsd, ta ? fmt.usd(ta.efficiency.meanCostUsd) : t('na')), () => num(tb?.efficiency.meanCostUsd, tb ? fmt.usd(tb.efficiency.meanCostUsd) : t('na')), 'low')}
@@ -1110,6 +1154,25 @@ async function viewCompare(idA, idB) {
     ${!cohortComparable(a, b).comparable || (a.service?.endpointHost ?? null) !== (b.service?.endpointHost ?? null)
       ? `<p class="muted" style="border-left:3px solid var(--warn);padding-left:10px">${t('compare.crossRuntime')}</p>` : ''}
     <p class="muted">${t('compare.caveat')}</p>`;
+}
+
+// Part C: embed a REAL cohort upgrade report into the compare page (honest cohort frame — the report
+// is over N pairs, not these two experiments; the picker association is explicit). Reuses the shared
+// upgradeReportHtml + native relationship charts. Empty selection → clears the embed.
+async function renderCmpReport(compareId) {
+  const box = document.getElementById('cmp-report');
+  if (!box) return;
+  disposeCharts();
+  if (!compareId) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="muted">…</div>`;
+  try {
+    const report = await api('upgrades/' + encodeURIComponent(compareId));
+    const v = buildUpgradeView(report);
+    if (!v) { box.innerHTML = `<div class="empty">${t('load.failed')} ${fmt.esc(compareId)}</div>`; return; }
+    box.innerHTML = `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.cohortFrame')} <code>${fmt.esc(report.cohort ?? report.compareId ?? '')}</code></div>${upgradeReportHtml(v, report)}`;
+    applyPersistedDetails(box);
+    initRelationshipCharts(report.depgraph);
+  } catch (e) { box.innerHTML = `<div class="empty">${t('load.failed')} ${fmt.esc(e.message)}</div>`; }
 }
 
 // §4 runtime 自述 diff — descriptor diff (name/version/prompt sha/tools 增删) rendered ALONGSIDE the

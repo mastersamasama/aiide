@@ -217,6 +217,24 @@ export function ciOverlap(a, b) {
   return a.lo <= b.hi && b.lo <= a.hi;
 }
 
+// Part C (Compare 1-vs-1): the two Wilson CIs don't overlap → a conservative, honest signal that the
+// two experiments' success rates genuinely differ. NOT a cohort verdict (that needs `upgrade eval`'s
+// N pairs + FDR) — just a read on the two experiments compare already has. Absent bounds → false.
+export function wilsonCisDisjoint(a, b) {
+  if (!a || !b || a.lo == null || a.hi == null || b.lo == null || b.hi == null) return false;
+  return !ciOverlap(a, b);
+}
+
+// Tally task-level deltas (B−A, higher = better) into improved/regressed/flat for the Compare summary.
+export function deltaTally(deltas) {
+  const out = { improved: 0, regressed: 0, flat: 0 };
+  for (const d of deltas) {
+    if (d == null) continue;
+    if (d > 0) out.improved++; else if (d < 0) out.regressed++; else out.flat++;
+  }
+  return out;
+}
+
 // Skills present in both experiments whose hash changed (the only ones with a variable to
 // attribute). Unchanged hashes are omitted → no causal row is drawn for them.
 export function skillHashDeltas(a, b) {

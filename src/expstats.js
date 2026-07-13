@@ -14,7 +14,8 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectSessionEvents, attributeRead, SKILL_READ_RE } from './depgraph.js';
+import { collectSessionEvents, attributeRead, SKILL_READ_RE, depgraphReport } from './depgraph.js';
+import { depgraphToCharts } from './report.js';
 import { classifyToolResult } from './parser.js';
 // §3.2 toolUsage: the toolCall `kind` closed set lives with the other adapter schema value-domain
 // constants (adaptercheck.js is the shared single-source home — check and stats can never drift).
@@ -1018,12 +1019,15 @@ export function buildExpStats({
     return caseMap.get(caseId);
   };
 
+  const allSessions = []; // Part D: single-arm reference-relationship — collectSessionEvents per run,
+                          // fed to depgraphReport (same input the upgrade cohort pipeline uses per arm)
   for (const v of buckets.valid) {
     const cr = ensureCase(v.taskId);
     const caseInfo = { id: v.taskId, category: cr.category };
     for (let s = 0; s < v.runs.length; s++) {
       const run = v.runs[s];
       const ev = collectSessionEvents(run, caseInfo, { probes });
+      allSessions.push(ev);
       provenances.add(ev.provenance);
       if (ev.triggerEvents.length) anyTriggerEvents = true;
       if (ev.readEvents.length) anyReadEvents = true;
@@ -1167,6 +1171,11 @@ export function buildExpStats({
     selfReport: computeSelfReport(buckets.valid),
     sidechainShare: computeSidechainShare(buckets.valid, { runtime }),
     statsHealth: computeStatsHealth(tasks, buckets.valid),
+    // Part D — single-arm reference relationship (co-trigger graph / co-read heatmap / intent→skill→ref
+    // sankey), same {graph,heatmap,sankey} shape the upgrade report carries. full:false — a single
+    // experiment can't support the paired jaccard merge-split analysis; the charts populate from
+    // co-trigger/co-read/read-rate signals honestly (sparse → empty states). null when no sessions.
+    depgraph: allSessions.length ? depgraphToCharts(depgraphReport(allSessions, { full: false })) : null,
   };
 }
 

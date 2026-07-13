@@ -1212,6 +1212,7 @@ async function viewExperiment(id) {
     ${diagnosticsSection(e)}`;
   annRender();
   applyPersistedDetails($app);
+  wireDiagnosticsCharts(expDepgraph(e));
 }
 
 // Deep-diagnostics section (collapsed by default). Everything that answers "why/how deep" — runtime
@@ -1219,11 +1220,34 @@ async function viewExperiment(id) {
 // task runs. filter(Boolean) drops panels that render nothing (claude-code runtime, no context
 // insights, pre-metadata experiments) so the section never shows an empty shell; if ALL are empty
 // the section itself is absent. Open/closed state persists per-user via applyPersistedDetails.
+// Part D depgraph resolver: embedded (new experiments, stats.depgraph) OR the non-authoritative
+// supplemental channel (old experiments backfilled via `aiide stats <id> --force --write`). Null → panel absent.
+function expDepgraph(e) { return e?.stats?.depgraph ?? e?.supplemental?.sections?.depgraph ?? null; }
+
 function diagnosticsSection(e) {
+  // Part D: the single-arm reference-relationship charts join the diagnostics stack. Experiments with
+  // neither embedded nor supplemental depgraph → relationshipChartsHtml → '' → panel absent (honest).
   const inner = [runtimePanel(e), contextInsightsPanel(e.contextInsights), expStatsPanel(e),
-                 runObsPanel(e), runHealthPanel(e), metadataPanel(e)].filter(Boolean).join('');
+                 runObsPanel(e), runHealthPanel(e), relationshipChartsHtml(expDepgraph(e)), metadataPanel(e)].filter(Boolean).join('');
   if (!inner) return '';
   return `<details class="diag-section" data-persist="exp-diagnostics"><summary>${t('panel.diagnostics')}</summary>${inner}</details>`;
+}
+
+// init the relationship ECharts only once the (default-collapsed) diagnostics section is actually
+// visible — ECharts on a display:none container measures 0×0. Wires the details' toggle: first open →
+// init; later opens → resize. Persisted-open → init immediately.
+function wireDiagnosticsCharts(depgraph) {
+  if (!depgraph) return;
+  const sec = document.querySelector('.diag-section');
+  if (!sec) return;
+  let inited = false;
+  const onToggle = () => {
+    if (!sec.open) return;
+    if (!inited) { inited = true; initRelationshipCharts(depgraph); }
+    else _charts.forEach(c => { try { c.resize(); } catch { /* disposed */ } });
+  };
+  sec.addEventListener('toggle', onToggle);
+  if (sec.open) onToggle();
 }
 
 // runtime-under-test card: what was benchmarked, which endpoint, which env keys crossed the

@@ -1109,8 +1109,8 @@ test('T1S6 runHealthView: per-segment null reasons are independent — a null ca
 
 test('T1S6 dashboard wiring: 运行观测/运行健康 cards render after the coverage card, dual-layer titles, supplemental badge, null reason line', () => {
   const html = readFileSync(fileURLToPath(new URL('../web/index.html', import.meta.url)), 'utf8');
-  // cards rendered on the experiment page AFTER the coverage-stats panel
-  assert.match(html, /\$\{expStatsPanel\(e\)\}\s*\$\{runObsPanel\(e\)\}\s*\$\{runHealthPanel\(e\)\}/);
+  // cards rendered on the experiment page AFTER the coverage-stats panel (diagnosticsSection array order)
+  assert.match(html, /expStatsPanel\(e\),\s*runObsPanel\(e\), runHealthPanel\(e\)/);
   // dual-layer card titles: zh-hans headline + canonical section keys
   assert.match(html, /运行观测 <span class="muted"[^>]*>context 组成 \+ 工具使用（contextComposition · toolUsage · fileTargets）/);
   assert.match(html, /运行健康 <span class="muted"[^>]*>cache · 截断 · 子代理 · 自报成本 · 异常（cacheHitRate · truncation · sidechainShare · selfReport · statsHealth）/);

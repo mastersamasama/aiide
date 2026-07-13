@@ -89,14 +89,16 @@ test('T7.5/R7.EB2 tampered vendor sha → buildReportHtml refuses (no HTML emitt
   rmSync(tmp, { recursive: true, force: true });
 });
 
-test('T7.5/R7.5.2 aiide dashboard core does not import the vendored ECharts', () => {
-  for (const f of ['web/index.html', 'web/obs.js']) {
-    const p = join(HERE, '..', f);
-    if (!existsSync(p)) continue;
-    const src = readFileSync(p, 'utf8');
-    assert.ok(!/vendor\/echarts/i.test(src), `${f} must not reference vendor/echarts`);
-    assert.ok(!/\becharts\.init\b/.test(src), `${f} must not call echarts.init`);
-  }
+// R7.5.2 (superseded by the dashboard-report-integration decision): the dashboard now renders the
+// reference-relationship charts natively, so it DOES use ECharts — but LAZILY. The invariant that
+// survives: the common runs/experiments path pays +0 — echarts is never EAGERLY <script src>-loaded,
+// only injected on demand by ensureEcharts(); and obs.js (pure view logic) stays echarts-free.
+test('R7.5.2 dashboard loads ECharts lazily (no eager <script src>), obs.js stays echarts-free', () => {
+  const idx = readFileSync(join(HERE, '..', 'web', 'index.html'), 'utf8');
+  assert.ok(!/<script[^>]+src=["'][^"']*echarts/i.test(idx), 'index.html must not EAGERLY <script src>-load echarts (lazy only)');
+  assert.match(idx, /function ensureEcharts\(\)/); // the lazy injector is the only load path
+  const obs = readFileSync(join(HERE, '..', 'web', 'obs.js'), 'utf8');
+  assert.ok(!/vendor\/echarts/i.test(obs) && !/\becharts\.init\b/.test(obs), 'obs.js must stay echarts-free (pure view logic)');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════

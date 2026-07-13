@@ -359,7 +359,7 @@ function buildNextSteps(comparison, config) {
 }
 
 // ── depgraph (U5 output) → ECharts chart shapes for the HTML ─────────────────────────────────
-function depgraphToCharts(depgraph, config = UPGRADE_CONFIG) {
+export function depgraphToCharts(depgraph, config = UPGRADE_CONFIG) {
   const dg = depgraph ?? { coTriggerGraph: { nodes: [], edges: [] }, coReadPairs: [], readRates: [], mergeMap: [], jaccardSplit: [] };
   const excluded = new Set(config.depgraph.hardExcludeSkills ?? []);
   const mergePairs = new Set();

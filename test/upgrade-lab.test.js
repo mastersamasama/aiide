@@ -411,6 +411,9 @@ test('T-stats/seal: runSuite embeds experiment.stats (identity holds, probes:nul
     assert.equal(exp.tasks.eth.category, 'price');
     assert.equal(exp.tasks.eth.expected_skill, 'okx-dex-market');
     assert.equal(exp.tasks.held.held_out, true);
+    // Phase 1 (upgrade fidelity): each repeat carries an L1 routing verdict (l1Pass), so a dynamic
+    // arm can build a real L1 axis. targetSkills present → l1Pass is a boolean (not undefined).
+    assert.equal(typeof exp.tasks.eth.repeats[0].l1Pass, 'boolean');
   } finally {
     delete process.env.AIIDE_CLAUDE_BIN;
     rmSync(root, { recursive: true, force: true });

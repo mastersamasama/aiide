@@ -1085,12 +1085,20 @@ export function buildExpStats({
 
   // excluded-run and artifact (blocked) reads for M2 exemptions
   const excludedReads = new Set();
+  // S7 washed-out tripwire: external-tool commands invoked in EXCLUDED repeats (the "new version
+  // spams commands then halts → excluded rule quietly launders it" pattern). tool -> Set<cmd>.
+  const excludedCli = new Map();
   for (const ex of buckets.excluded) {
     if (ex.runId == null) continue;
     for (const id of String(ex.runId).split(',').map((s) => s.trim()).filter(Boolean)) {
       const run = load(id);
       if (!run) continue;
-      for (const r of collectSessionEvents(run, { id: ex.taskId }, { probes }).readSet) excludedReads.add(r.logicalRef);
+      const ev = collectSessionEvents(run, { id: ex.taskId }, { probes });
+      for (const r of ev.readSet) excludedReads.add(r.logicalRef);
+      for (const c of ev.cliSet ?? []) {
+        if (!excludedCli.has(c.tool)) excludedCli.set(c.tool, new Set());
+        excludedCli.get(c.tool).add(c.cmd);
+      }
     }
   }
   // artifact reads are BLOCKED reads → dropped from readSet; recovered by a light re-scan.
@@ -1111,7 +1119,9 @@ export function buildExpStats({
   if (probes && probes.length) {
     probesStats = probes.map((probe) => {
       const zeroMatch = probeZeroMatchOverValid(buckets.valid, probe);
-      return cliStats(caseRecords, probe, config.probes ?? UPGRADE_CONFIG.probes, { zeroMatch });
+      const st = cliStats(caseRecords, probe, config.probes ?? UPGRADE_CONFIG.probes, { zeroMatch });
+      st.excludedHits = [...(excludedCli.get(probe.tool) ?? [])].sort(); // S7 washed-out tripwire (additive)
+      return st;
     });
   }
 

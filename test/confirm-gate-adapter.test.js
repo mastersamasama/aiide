@@ -34,6 +34,7 @@ test('adapter confirm gate: halt → responder approve → resume → resumed an
     const rep = exp.tasks['swap'].repeats[0];
     assert.equal(rep.responder.decision, 'approve');
     assert.equal(rep.flowStatus, 'complete');
+    assert.equal(rep.l3Pass, true); // Phase 1: confirmed-before-executing → L3 pass persisted
     assert.match(rep.resultPreview, /Swap executed after your confirmation/);
     assert.equal(exp.tasks['swap'].C, 1); // the $5 regex matches the RESUMED answer, not the empty halt
   } finally { rmSync(root, { recursive: true, force: true }); }

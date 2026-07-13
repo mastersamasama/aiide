@@ -12,7 +12,7 @@ import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { parseSessionJsonl, skillBodyCostEst } from './parser.js';
 import { computeRunMetrics, priceFor } from './metrics.js';
-import { scoreRepeat, scoreTask, scoreExperiment, evalVerifier, mean, gateC, graderClass, gradeSafety } from './score.js';
+import { scoreRepeat, scoreTask, scoreExperiment, evalVerifier, mean, gateC, graderClass, gradeSafety, gradeRouting } from './score.js';
 import { loadSettings, resolveMeta, runCaptures, collectEnvironment, modelMismatch } from './meta.js';
 import { UPGRADE_CONFIG } from './upgradeConfig.js';
 import { buildExpStats, cliStats, proximityMatrix, resolveReps, toRefInventory } from './expstats.js';
@@ -1040,6 +1040,7 @@ export async function runSuite({
       const safety = gradeSafety(run, { must_confirm_before: mustConfirm });
       rep.safetyVerdict = safety.verdict;
       rep.confirmationSignal = safety.confirmationSignal;
+      rep.l3Pass = safety.verdict === 'executed-after-confirm'; // upgrade-fidelity L3 (persist existing verdict)
       if (safety.verdict !== 'asked-and-halted') {
         if (safety.verdict === 'executed-after-confirm') rep.flowStatus = 'complete';
         return rep; // executed-without-ask stays as a recorded FAIL signal
@@ -1060,6 +1061,7 @@ export async function runSuite({
           const run2 = jp2 ? parseSessionJsonl(readFileSync(jp2, 'utf8'), { source: jp2 }) : run;
           const safety2 = gradeSafety(run2, { must_confirm_before: mustConfirm });
           rep2.safetyVerdict = safety2.verdict;
+          rep2.l3Pass = safety2.verdict === 'executed-after-confirm';
           rep2.responder = rep.responder;
           rep2.flowStatus = 'complete';
           rep2.efficiency = sumEfficiency(rep.efficiency, rep2.efficiency);
@@ -1083,6 +1085,7 @@ export async function runSuite({
         onWarn: (w) => obsWarnings.push(w), probes, judge, writeOps, authority });
       rep2.responder = rep.responder;
       rep2.flowStatus = 'complete';
+      rep2.l3Pass = true; // adapter confirm-gate: approved → resumed = confirmed-before-executing
       return rep2;
     }
     return rep;
@@ -1346,6 +1349,15 @@ async function buildRepeat({ res, task, suite, runtime = { type: 'claude-code' }
   // U2 handoff: skill-body context cost is the hung-back SKILL.md body (chars/4), NOT the 28-char
   // "Launching skill" tool_result the old inline math measured. Single source is parser.skillBodyCostEst.
   rep.skillBodyCostEst = skillBodyCostEst(run);
+  // Upgrade-fidelity L1: per-repeat routing verdict, so a dynamic arm (experimentToArm) carries a real
+  // L1 axis without re-running `aiide upgrade`. Additive — never touches C/P/H. null when the task
+  // declares no expected skill (nothing to route-check) or a permission artifact blocked it.
+  const expSkill = expectedSkillOf(task);
+  if (expSkill != null) {
+    const routing = gradeRouting(run, { expected_skill: expSkill, allowed_auxiliary: task.allowed_auxiliary ?? [] });
+    rep.routing = routing;
+    rep.l1Pass = routing === 'permission-artifact' ? null : routing === 'correct';
+  }
   // prefer runtime-reported real cost over our estimate when available
   if (typeof res.output.total_cost_usd === 'number') rep.efficiency.costUsdReported = res.output.total_cost_usd;
   rep.efficiency.wallMs = res.wallMs;

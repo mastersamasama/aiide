@@ -448,4 +448,8 @@ test('buildExpStats: schemaVersion 3（taxonomy T1 Stage 3 rebaseline）+ invent
   assert.equal(stats.refCoverage.refMeta['s.a/references/x.md'].tokensEst, 11);
   // caseJoin 落盤且與 triggerRate 對帳
   assert.deepEqual(stats.skillCoverage.caseJoin['s.a'].cases, [{ caseId: 'k1', attempted: 1, triggered: 1 }]);
+  // Part D: single-arm reference-relationship section present with the {graph,heatmap,sankey} shape;
+  // the triggered skill s.a is a graph node (built from the same sessions refCoverage uses)
+  assert.ok(stats.depgraph && stats.depgraph.graph && stats.depgraph.heatmap && stats.depgraph.sankey, 'stats.depgraph present with chart shape');
+  assert.ok(stats.depgraph.graph.nodes.some(n => n.name === 's.a'), 's.a is a co-trigger graph node');
 });

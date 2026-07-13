@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   attrContributions, computeRunItems, deltaSignificant, errorRate, pruneHint,
   normalizeInput, detectLoops, stackSeries,
-  cohortComparable, ciOverlap, skillHashDeltas, meanActivation, causalWithinNoise,
+  cohortComparable, ciOverlap, wilsonCisDisjoint, deltaTally, skillHashDeltas, meanActivation, causalWithinNoise,
   upgradeVerdictGlyph, upgradeAdoptable, upgradeRecommendation, upgradeNextSteps, upgradeRedlist, buildUpgradeView,
   UPGRADE_ENUM_GLOSS, upgradeEnumGloss,
   expStatsState, EXP_STATS_STATE, blockStatusBadge, expSkillCoverageView, expRefCoverageView,
@@ -307,6 +307,21 @@ test('S15: skillHashDeltas returns only changed hashes (AC 15c)', () => {
   const b = expWith({ environment: { suite: { sha256: 'aaaa' }, skills: [{ name: 'okx', hash: 'd4e5f6' }] } });
   assert.deepEqual(skillHashDeltas(a, b), [{ name: 'okx', hashA: 'a1b2c3', hashB: 'd4e5f6' }]);
   assert.deepEqual(skillHashDeltas(a, a), []); // identical hash → no causal row
+});
+
+test('Part C: wilsonCisDisjoint — non-overlap true, overlap/touching/null false', () => {
+  assert.equal(wilsonCisDisjoint({ lo: 0.0, hi: 0.3 }, { lo: 0.5, hi: 0.9 }), true);  // disjoint (a below b)
+  assert.equal(wilsonCisDisjoint({ lo: 0.6, hi: 0.9 }, { lo: 0.1, hi: 0.4 }), true);  // disjoint (a above b)
+  assert.equal(wilsonCisDisjoint({ lo: 0.2, hi: 0.6 }, { lo: 0.5, hi: 0.9 }), false); // overlap
+  assert.equal(wilsonCisDisjoint({ lo: 0.1, hi: 0.5 }, { lo: 0.5, hi: 0.9 }), false); // touching (0.5==0.5 is overlap, conservative)
+  assert.equal(wilsonCisDisjoint(null, { lo: 0.5, hi: 0.9 }), false);                  // missing side
+  assert.equal(wilsonCisDisjoint({ lo: null, hi: 0.3 }, { lo: 0.5, hi: 0.9 }), false); // absent bound → no claim
+});
+
+test('Part C: deltaTally — improved/regressed/flat by sign, nulls skipped', () => {
+  assert.deepEqual(deltaTally([0.5, -0.2, 0, 0.1, null, -3]), { improved: 2, regressed: 2, flat: 1 });
+  assert.deepEqual(deltaTally([]), { improved: 0, regressed: 0, flat: 0 });
+  assert.deepEqual(deltaTally([null, null]), { improved: 0, regressed: 0, flat: 0 });
 });
 
 test('S15: within-noise only when every shared task CI overlaps (AC 15b)', () => {

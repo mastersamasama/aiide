@@ -1,0 +1,18 @@
+{
+  "result": "ETH 当前价格为 $1,999.42。",
+  "total_cost_usd": 0.012,
+  "runtime_version": "2.1.0",
+  "trace": [
+    {
+      "text": "查询 DEX 行情……",
+      "durationMs": 1200,
+      "usage": { "in": 1000, "out": 50, "cacheW": 0, "cacheR": 2000 },
+      "toolCalls": [
+        { "name": "market_price", "isError": false,
+          "input": { "symbol": "ETH" }, "result": "{\"price\":\"1999.42\"}", "denialKind": null }
+      ]
+    },
+    { "text": "ETH 当前价格为 $1,999.42。", "durationMs": 300,
+      "usage": { "in": 1200, "out": 80, "cacheW": 0, "cacheR": 2000 } }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "aiide",
+  "version": "0.1.0",
+  "description": "Local-first observability + isolated skill lab for AI agent runtimes (Claude Code adapter)",
+  "type": "module",
+  "bin": { "aiide": "bin/aiide.js" },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

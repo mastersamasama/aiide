@@ -1,0 +1,15 @@
+{
+  "tool": "onchainos",
+  "match": {
+    "toolName": "Bash",
+    "commandPattern": "(?:^|[;&|]\\s*)onchainos\\s+([a-z][\\w-]*)(?:\\s+([a-z][\\w-]*))?"
+  },
+  "commandSurface": {
+    "source": "static",
+    "commands": ["price get", "order create", "balance"]
+  },
+  "sequences": [
+    { "pattern": ["price get", "order create"], "singleCommand": "order create --with-price" }
+  ],
+  "capabilities": []
+}

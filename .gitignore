@@ -1,0 +1,17 @@
+# secrets — NEVER commit (BYOK: keys live only in local service.env)
+**/service.env
+*.env
+*.key
+*.pem
+
+# local runtime data dir (sealed experiments, runs, stats, and service.env)
+.aiide/
+
+# dependencies (aiide is zero-dep, but guard against accidental installs)
+node_modules/
+
+# OS / editor / tool junk
+.DS_Store
+Thumbs.db
+*.log
+--full-page

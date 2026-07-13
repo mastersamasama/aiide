@@ -1,0 +1,58 @@
+{
+  "name": "okx-demo",
+  "model": "DeepSeek-V4-Pro",
+  "repeats": 3,
+  "timeoutMs": 300000,
+  "runtime": {
+    "type": "command",
+    "name": "okx-onchainos-demo",
+    "cmd": "node",
+    "args": ["{{SUITE_DIR}}/../adapters/okx-demo-sse-driver.mjs", "{{PROMPT}}"],
+    "env": {
+      "AIIDE_SESSION_TOKEN": "aiide-bench",
+      "OKX_DEMO_SEED_HOME": "C:/Users/wky/.onchainos",
+      "OKX_DEMO_HOMES_DIR": "D:/programme/ai/okx-onchainos-demo/.onchainos-homes"
+    },
+    "service": {
+      "cmd": "bun",
+      "args": ["server/server.ts"],
+      "cwd": "D:/programme/ai/okx-onchainos-demo",
+      "env": {
+        "AI_MODEL": "{{MODEL}}",
+        "ENABLE_SSE": "1",
+        "PORT": "3901",
+        "AI_MAX_TURNS": "15"
+      },
+      "readyUrl": "http://127.0.0.1:3901/api/chats",
+      "readyTimeoutMs": 45000,
+      "requiredEnv": ["ANTHROPIC_API_KEY"],
+      "requiredCli": ["bun", "onchainos"]
+    }
+  },
+  "tasks": [
+    {
+      "id": "eth-price",
+      "prompt": "What is the current price of ETH on Ethereum? Use your on-chain skills to query it and report the USD price clearly.",
+      "verifiers": [
+        { "type": "regex", "pattern": "ETH" },
+        { "type": "numeric_range", "min": 100, "max": 100000 }
+      ]
+    },
+    {
+      "id": "btc-price",
+      "prompt": "查一下 BTC（WBTC）在 Ethereum 链上现在的价格，用美元报价。",
+      "verifiers": [
+        { "type": "regex", "pattern": "BTC" },
+        { "type": "numeric_range", "min": 5000, "max": 2000000 }
+      ]
+    },
+    {
+      "id": "trending-tokens",
+      "prompt": "Show me the top trending tokens on Solana right now with their prices.",
+      "verifiers": [
+        { "type": "regex", "pattern": "[Ss]olana|SOL" },
+        { "type": "numeric_range", "min": 0.0000001, "max": 10000000 }
+      ]
+    }
+  ]
+}

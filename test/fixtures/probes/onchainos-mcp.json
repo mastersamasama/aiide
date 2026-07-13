@@ -1,0 +1,12 @@
+{
+  "tool": "onchainos-mcp",
+  "match": {
+    "toolNamePattern": "^mcp__onchainos__(.+)$"
+  },
+  "commandSurface": {
+    "source": "static",
+    "commands": ["price_get", "order_create"]
+  },
+  "sequences": [],
+  "capabilities": []
+}

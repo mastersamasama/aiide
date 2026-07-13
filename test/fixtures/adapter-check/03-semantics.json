@@ -1,0 +1,23 @@
+{
+  "result": "ETH 当前价格为 $1,999.42。",
+  "observability": ["trace", "triggers", "refReads", "skills_inventory"],
+  "skills_inventory": {
+    "okx-dex-market": {
+      "versionSha": "9f2c1ab04d77e6b2",
+      "refs": [
+        "okx-dex-market/references/api.md",
+        "okx-dex-market/references/endpoints.md"
+      ]
+    }
+  },
+  "trace": [
+    {
+      "text": "启用行情模块并读取 API 文档",
+      "triggers": ["okx-dex-market"],
+      "refReads": [
+        { "skill": "okx-dex-market", "ref": "okx-dex-market/references/api.md", "status": "ok" }
+      ]
+    },
+    { "text": "ETH 当前价格为 $1,999.42。", "triggers": [], "refReads": [] }
+  ]
+}

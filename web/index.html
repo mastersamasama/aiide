@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aiide — local agent observability</title>
+<link rel="icon" href="/favicon.ico">
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2129; --border: #2d333b;
+    --fg: #e6edf3; --dim: #8b949e; --accent: #58a6ff; --ok: #3fb950; --warn: #d29922;
+    --err: #f85149; --purple: #bc8cff; --cyan: #39c5cf;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 ui-monospace, "Cascadia Code", Consolas, "Microsoft YaHei", monospace; }
+  header { display: flex; align-items: center; gap: 24px; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; color: var(--accent); }
+  header h1 span { color: var(--dim); font-weight: normal; }
+  nav a { color: var(--dim); text-decoration: none; margin-right: 18px; padding: 4px 2px; }
+  nav a.active { color: var(--fg); border-bottom: 2px solid var(--accent); }
+  .lang { margin-left: auto; }
+  .lang button { background: var(--panel2); color: var(--dim); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+  .lang button.on { color: var(--fg); border-color: var(--accent); }
+  main { padding: 20px 24px; max-width: 1280px; margin: 0 auto; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; border: 1px solid var(--border); background: var(--panel2); color: var(--dim); margin: 0 3px 3px 0; }
+  .badge.skill { color: var(--purple); border-color: #4a3a63; }
+  .badge.err { color: var(--err); border-color: #6e2b2b; }
+  .badge.ok { color: var(--ok); border-color: #2b5e37; }
+  .badge.warn { color: var(--warn); border-color: #5e4a1a; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--dim); font-weight: normal; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  tr.click { cursor: pointer; } tr.click:hover { background: var(--panel2); }
+  a { color: var(--accent); text-decoration: none; }
+  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; min-width: 130px; }
+  .card .v { font-size: 22px; margin-top: 2px; } .card .k { color: var(--dim); font-size: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin: 16px 0; }
+  .panel h3 { margin: 0 0 10px; font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+  .muted { color: var(--dim); font-size: 12px; }
+  .round { border-left: 3px solid var(--border); padding: 6px 0 6px 14px; margin: 4px 0; }
+  .round.skill-round { border-left-color: var(--purple); }
+  .round.user-turn { border-left-color: #3d5a4e; background: rgba(63,185,80,0.04); border-radius: 0 6px 6px 0; }
+  details.round > summary { list-style: none; cursor: pointer; }
+  details.round > summary::before { content: '▸ '; color: var(--dim); }
+  details.round[open] > summary::before { content: '▾ '; }
+  .round-body { margin: 8px 0 4px 16px; }
+  .seg-bar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--panel2); }
+  .seg-bar div { height: 100%; }
+  .legend { font-size: 11px; color: var(--dim); margin: 3px 0 8px; }
+  .legend b { font-weight: normal; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 4px 0 10px; }
+  .tool-block { border: 1px solid var(--border); border-radius: 6px; margin: 8px 0; }
+  .tool-block .th { padding: 5px 10px; background: var(--panel2); font-size: 12px; }
+  .tool-block .tb { padding: 4px 10px; }
+  .btn { background: var(--panel2); color: var(--dim); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 12px; margin-left: 8px; }
+  .btn:hover { color: var(--fg); border-color: var(--accent); }
+  .cmp-a { color: var(--accent); } .cmp-b { color: var(--purple); }
+  .bar-bg { background: var(--panel2); border-radius: 3px; height: 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  .score-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+  .score-row .lbl { width: 220px; }
+  .score-row .val { width: 60px; text-align: right; }
+  .tip { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+  .tipbtn { cursor: help; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border);
+    color: var(--accent); display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; flex: none; user-select: none; }
+  .tippop { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 50;
+    width: max-content; max-width: min(420px, 78vw);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px;
+    white-space: pre-wrap; font-size: 12px; line-height: 1.55; color: var(--dim); font-weight: normal;
+    box-shadow: 0 8px 28px rgba(0,0,0,.55); }
+  .tip:hover .tippop, .tip:focus-within .tippop { display: block; }
+  .tip.below .tippop { bottom: auto; top: calc(100% + 6px); }
+  .tip.right .tippop { left: auto; right: 0; }
+  .tip.term { gap: 0; cursor: help; }
+  .tip.term > b, .tip.term > span.lbl { border-bottom: 1px dotted var(--dim); }
+  .empty { color: var(--dim); padding: 40px; text-align: center; border: 1px dashed var(--border); border-radius: 8px; margin-top: 20px; }
+  /* U8: statistical term with a native-title tooltip — dotted underline marks it hoverable, zero deps */
+  .statterm { border-bottom: 1px dotted var(--dim); cursor: help; }
+  /* metadata panel */
+  .kv-row { display: grid; grid-template-columns: 200px 1fr; gap: 0 14px; padding: 2px 0; align-items: baseline; }
+  @media (max-width: 900px) { .kv-row { grid-template-columns: 1fr; } }
+  .mgroup { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 8px; }
+  .mgroup:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .mgroup h4 { margin: 0 0 6px; font-size: 12px; color: var(--dim); font-weight: normal; text-transform: uppercase; letter-spacing: .05em; }
+  .ann-ops { opacity: 0; transition: opacity 120ms; }
+  .ann-row:hover .ann-ops, .ann-row:focus-within .ann-ops { opacity: 1; }
+  .md-in { background: var(--panel2); border: 1px solid var(--border); color: var(--fg); font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; }
+  .md-in:focus-visible { border-color: var(--accent); outline: none; }
+  .md-in.bad { border-color: var(--err); }
+  .md-err { color: var(--err); font-size: 12px; }
+  @keyframes annflash { from { background: rgba(88,166,255,.12); } to { background: transparent; } }
+  .ann-new { animation: annflash 400ms ease-out; }
+  @media (prefers-reduced-motion: reduce) { .ann-ops { transition: none; } .ann-new { animation: none; } }
+  .diff-hl { color: var(--warn); }
+  tr.diff-row td:first-child { border-left: 3px solid var(--warn); }
+  details { margin: 6px 0; } summary { cursor: pointer; color: var(--accent); }
+  .diag { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 8px; }
+  code.res { display: block; white-space: pre-wrap; word-break: break-word; background: var(--panel2); border-radius: 6px; padding: 10px; margin: 6px 0; font-size: 12px; max-height: 340px; overflow: auto; }
+  /* experiment IA: focal "task runs" section label + collapsible deep-diagnostics section */
+  .section-label { margin: 28px 0 2px; font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+  .diag-section { margin: 26px 0 6px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .diag-section > summary { list-style: none; color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; display: inline-flex; align-items: center; gap: 8px; }
+  .diag-section > summary::-webkit-details-marker { display: none; }
+  .diag-section > summary::before { content: '▸'; color: var(--dim); }
+  .diag-section[open] > summary::before { content: '▾'; }
+  .diag-section > summary:hover { color: var(--fg); }
+  /* per-task run card: question/answer paired at the top so "what ran & how it looks" reads without expanding */
+  .qa { display: grid; grid-template-columns: 20px 1fr; gap: 2px 10px; margin: 8px 0 10px; align-items: baseline; }
+  .qa .tag { font-size: 11px; color: var(--dim); font-weight: 600; }
+  .qa .qtext { font-size: 14px; line-height: 1.55; color: var(--fg); }
+  .vbadges { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; align-items: center; }
+  .searchbox { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; width: 200px; }
+  .searchbox:focus-visible { border-color: var(--accent); outline: none; }
+  mark.hl { background: rgba(210,153,34,.4); color: var(--fg); border-radius: 2px; padding: 0 1px; }
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); vertical-align: middle; margin: 0 4px; }
+  .live-dot.pulse { animation: livepulse 1.2s ease-out; }
+  @keyframes livepulse { from { box-shadow: 0 0 0 0 rgba(63,185,80,.6); } to { box-shadow: 0 0 0 8px rgba(63,185,80,0); } }
+  @media (prefers-reduced-motion: reduce) { .live-dot.pulse { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>aiide <span data-i18n="subtitle"></span></h1>
+  <nav id="nav">
+    <a href="#runs" data-view="runs" data-i18n="nav.runs"></a>
+    <a href="#experiments" data-view="experiments" data-i18n="nav.experiments"></a>
+    <a href="#skills" data-view="skills" data-i18n="nav.skills"></a>
+    <a href="#upgrades" data-view="upgrades" data-i18n="nav.upgrades"></a>
+  </nav>
+  <input id="q" class="searchbox" type="search" autocomplete="off" oninput="applySearch()" onkeydown="searchKey(event)">
+  <div class="lang" id="toolbar" style="margin-left:auto"></div>
+  <div class="lang" id="lang"></div>
+</header>
+<main id="app"></main>
+<script src="vendor/snapdom.min.js"></script>
+<script type="module">
+  // pure observability logic lives in a testable ES module (test/web-obs.test.js). Copy its
+  // exports onto window so the classic script below can call them as bare globals. Module
+  // scripts run before DOMContentLoaded, so these are ready by the time render() first fires.
+  import * as OBS from './obs.js';
+  Object.assign(window, OBS);
+</script>
+<script>
+// ---- i18n --------------------------------------------------------------
+// technical terms (SkillScore, C/P/R/H, Wilson CI, cache, tokens) stay in English by convention
+const I18N = {
+  en: {
+    'subtitle': '· local-first agent observability',
+    'nav.runs': 'Runs', 'nav.experiments': 'Experiments', 'nav.skills': 'Skills', 'nav.upgrades': 'Upgrades',
+    // U8 upgrade views (verdict-first, read-only, governance-neutral)
+    'upg.empty': 'No upgrade comparisons yet.<br><br>aiide upgrade run … then: aiide upgrade compare + report<br>reports land under &lt;data-dir&gt;/upgrades/&lt;compare-id&gt;/',
+    'upg.title': 'upgrade comparisons', 'upg.trendTab': 'trend', 'upg.listTab': 'comparisons',
+    'th.verdict': 'verdict', 'th.recommend': 'recommendation', 'th.intent': 'intent', 'th.arms': 'versions (new vs old)', 'th.pairs': 'pairs',
+    'upg.flat': '— unchanged',
+    'upg.recommend': 'recommendation', 'upg.mixedBundle': 'mixed-bundle', 'upg.baseline': 'baseline',
+    'upg.undecidable.insufficient-data': 'undecidable (insufficient data)',
+    'upg.undecidable.inconclusive': 'undecidable (exclusion tripwire)',
+    'intent.cost-opt': 'cost-opt', 'intent.quality-fix': 'quality-fix', 'intent.neutral-refactor': 'neutral-refactor',
+    'upg.minPairsLabel': 'MIN_PAIRS', 'upg.minPairsSkillLabel': 'MIN_PAIRS_SKILL',
+    'upg.enum.mixed-bundle': 'mixed-bundle', 'upg.enum.old-full': 'old-full', 'upg.enum.new-full': 'new-full',
+    'verdict.cost-opt': 'cost-opt', 'verdict.quality-fix': 'quality-fix', 'verdict.neutral-refactor': 'neutral-refactor',
+    'verdict.insufficient-data': 'insufficient-data', 'verdict.inconclusive': 'inconclusive',
+    'verdict.gloss.cost-opt': 'cost went down without hurting quality',
+    'verdict.gloss.quality-fix': 'target quality axis improved, cost not worse',
+    'verdict.gloss.neutral-refactor': 'quality non-inferior, cost not worse',
+    'verdict.gloss.insufficient-data': 'too few paired cases to decide — NOT parity, NOT adoptable',
+    'verdict.gloss.inconclusive': 'exclusion tripwire tripped — verdict withheld, NOT parity, NOT adoptable',
+    'upg.established': 'established (adoption evidence)', 'upg.notEstablished': 'not established',
+    'upg.evidenceNote': 'a verdict is adoption EVIDENCE — adoption is always a human decision; this dashboard has no adopt/rewrite action.',
+    'upg.axesQuality': 'quality (L1/L2/L3 pass-rate delta, pp)', 'upg.axesCost': 'cost (paired delta + bootstrap CI)',
+    'upg.axis.l1': 'L1 routing', 'upg.axis.l2': 'L2 verifier', 'upg.axis.l3': 'L3 final-state',
+    'upg.axis.turns': 'turns', 'upg.axis.tokens': 'equiv tokens', 'upg.axis.seconds': 'seconds',
+    'upg.heuristic': 'heuristic', 'upg.sigDown': 'sig. down', 'upg.sigUp': 'sig. up', 'upg.flowInc': 'confirm-then-interrupted',
+    'upg.perSkill': 'per-skill diagnostics (reference only — cannot decide adoption alone)', 'upg.redlist': 'watch-list',
+    'upg.perSkillPlain': 'a single skill’s diagnostics are not an adoption certificate — only the whole-bundle verdict counts; the tool only gives evidence, you decide whether to adopt.',
+    // plain-language tooltips for the statistical terms — same wording as the U7 report end
+    'tip.upg.pairs': 'paired cases = tasks both the new and old version ran — only shared tasks are a fair comparison',
+    'tip.upg.minPairs': 'MIN_PAIRS = the minimum paired-case count for a trustworthy verdict; below it, the result shows "undecidable"',
+    'tip.upg.exclusion': 'exclusion rate = share of cases dropped for environment problems; over 12% forces "undecidable"',
+    'tip.upg.referenceOnly': 'reference-only = a 5-7 sample CI is coarse; treat it as indicative, not decisive',
+    'upg.flag.regressed': 'regressed', 'upg.flag.low-confidence': 'low confidence',
+    'upg.cleanSkills': 'no per-skill regressions or low-confidence skills',
+    'upg.nextSteps': 'next step', 'upg.needPairs': 'still need {n} more paired case(s) to reach MIN_PAIRS {m}',
+    'upg.excludedCases': 'excluded cases (kept out of the survivor set)',
+    'upg.reason.env-noise': 'env-noise', 'upg.reason.harness-halt': 'harness-halt',
+    'upg.action.add-scripted-reply': 'add scripted_reply', 'upg.action.inspect-env-noise': 'inspect env-noise retry whitelist',
+    'upg.versionQuad': 'version quad & effective config', 'upg.openReport': 'open full report',
+    'upg.openReportTip': 'the single-file HTML report (ECharts, offline) — opens same-origin in a new tab',
+    'upg.trendTitle': 'upgrade trend', 'upg.trendNote': 'each line is one case-id’s paired delta over successive comparisons; lines connect only within a cohort and break across a superseded genealogy (they are not bridged).',
+    'upg.trendEmpty': 'no trend yet — need at least two comparisons sharing case-ids in one cohort.',
+    'upg.cohort': 'cohort', 'upg.lineage': 'lineage', 'upg.exclusionPct': 'exclusion',
+    'skills.empty': 'No skills yet.<br><br>Run an experiment with a skill profile to see it here.',
+    'skills.title': 'skills', 'skill.title': 'skill',
+    'th.versions': 'versions', 'th.activationRate': 'activation', 'th.tokenTax': 'listing tax', 'th.usedIn': 'experiments',
+    'skill.card.activation': 'activation rate', 'skill.card.listing': 'listing tax (every request)',
+    'skill.card.body': 'body (when triggered)', 'skill.card.experiments': 'experiments', 'skill.card.meanScore': 'mean score',
+    'skill.card.runs': 'runs',
+    'skill.neverTriggered': 'installed but never triggered — pure context tax',
+    'skill.evolution': 'version evolution & score trend', 'skill.usedIn': 'experiments using this skill',
+    'skill.cohortNote': 'trend lines connect only within a comparability cohort (suite·model·runtime); each colour is one cohort — sparse points across cohorts are honest, not a defect.',
+    'skill.tokensUnit': 'tokens', 'skill.hashChange': 'hash change',
+    'ao.title': 'activation × outcome (did triggering help?)',
+    'ao.triggered': 'triggered', 'ao.notTriggered': 'not triggered', 'ao.never': 'never', 'ao.lowSample': 'correlational, low sample',
+    'badge.degraded': 'degraded', 'badge.excluded': 'excluded',
+    'runs.empty': 'No runs yet.<br><br>aiide ingest &lt;dir-with-session-jsonl&gt;<br>or: aiide lab run --suite suites/onchainos-basic.json',
+    'card.runs': 'runs', 'card.totalTokens': 'total tokens', 'card.estCost': 'est. cost', 'card.toolErrors': 'tool errors',
+    'card.errorRate': 'error rate',
+    'th.started': 'started', 'th.run': 'run', 'th.model': 'model', 'th.rounds': 'rounds',
+    'th.tokensInOut': 'tokens in/out', 'th.cacheRW': 'cache r/w', 'th.cost': 'cost*', 'th.errors': 'errors',
+    'th.skills': 'skills', 'th.experiment': 'experiment',
+    'runs.footnote': '* cost is an estimate from the configurable pricing table (.aiide/pricing.json)',
+    'prune.runs': 'runs', 'prune.oldest': 'oldest', 'prune.hint': 'clean up with',
+    'prune.tip': 'read-only hint — the dashboard never deletes; run this in your terminal (it asks for confirmation).',
+    'badge.warn': 'warn',
+    'back.runs': '← runs', 'back.experiments': '← experiments',
+    'card.duration': 'duration', 'card.inOutTokens': 'in+out tokens', 'card.cacheRead': 'cache read',
+    'card.peakContext': 'peak context*',
+    'panel.contextPerRound': 'context footprint per round *estimate',
+    'panel.outputPerRound': 'output tokens per round',
+    'panel.attrStack': 'context growth attribution per round (stacked)',
+    'attr.compaction': 'context shrank (compaction)',
+    'loop.suspected': 'suspected loop (deterministic)',
+    'loop.identical': 'identical input', 'loop.repeatedErr': 'consecutive errors',
+    'panel.perSkill': 'per-skill attribution',
+    'th.skill': 'skill', 'th.time': 'time', 'th.toolCalls': 'tool calls',
+    'panel.timeline': 'round-by-round timeline', 'live.on': 'live — appending rounds as they arrive',
+    'panel.sidechains': 'sidechains (subagents)', 'sidechain.agent': 'agent', 'sidechain.rounds': 'rounds',
+    'round.out': 'out', 'round.ctx': 'ctx',
+    'chart.peak': 'peak', 'chart.limit': 'limit', 'chart.round': 'round', 'chart.maxOut': 'max output tokens', 'chart.noData': 'no data',
+    'exp.empty': 'No experiments yet.<br><br>aiide lab run --suite suites/onchainos-basic.json',
+    'th.created': 'created', 'th.tasks': 'tasks', 'th.repeats': 'repeats', 'th.composite': 'composite',
+    'th.isolatedSkills': 'skills (isolated profile)',
+    'badge.lowSample': 'low sample',
+    'exp.repeats': 'repeats', 'exp.isolatedProfile': 'isolated profile:',
+    'badge.isolationOk': 'isolation verified', 'badge.isolationBad': 'isolation UNVERIFIED',
+    'card.composite': 'SkillScore composite', 'card.C': 'C completion', 'card.P': 'P process',
+    'card.R': 'R reliability', 'card.H': 'H context hygiene',
+    'exp.lowSampleNote': 'fewer than 3 repeats on some tasks — treat scores as indicative, not comparable.',
+    'panel.decomposition': 'score decomposition (composite = 0.5C + 0.25P + 0.15R + 0.10H — efficiency is diagnostic-only, never scored)',
+    'score.C': 'C completion', 'score.P': 'P process quality', 'score.R': 'R reliability', 'score.H': 'H context hygiene',
+    'task.title': 'task:', 'card.successRate': 'success rate', 'card.wilson': 'wilson 95% CI',
+    'card.activation': 'skill activation', 'card.repeatsOk': 'repeats ok',
+    'task.efficiency': 'efficiency (diagnostic only — not part of the score): mean',
+    'task.drilldown': 'drill-down:', 'task.repeatsWord': 'repeats',
+    'panel.taskRuns': 'task runs — what was asked & how it answered',
+    'panel.diagnostics': 'deep diagnostics (runtime · context · stats · obs · health · metadata)',
+    'task.checks': 'checks', 'task.repOf': 'shown:', 'task.noAnswer': 'no answer captured (all repeats excluded)',
+    'th.activated': 'activated', 'th.verifiers': 'verifiers', 'th.wall': 'wall', 'th.error': 'error',
+    'load.failed': 'load failed:',
+    'th.duration': 'duration',
+    'timeline.expandAll': 'expand all', 'timeline.collapseAll': 'collapse all',
+    'round.freshIn': 'fresh input', 'round.cacheR': 'cache read', 'round.cacheW': 'cache write',
+    'round.thinking': 'thinking', 'round.text': 'assistant output',
+    'round.toolInput': 'input', 'round.toolResult': 'result', 'round.noContent': '(no text content this round)',
+    'panel.contextInsights': 'context & skill overhead',
+    'ci.skill': 'skill', 'ci.listing': 'listing (paid on EVERY request)', 'ci.body': 'SKILL.md body (paid when triggered)',
+    'ci.total': 'total', 'ci.firstRound': 'measured first-round context', 'ci.bodyMeasured': 'measured triggered skill bodies',
+    'ci.note': 'listing = name+description injected into the system prompt of every request while the skill is installed. Body = loaded only when the skill triggers. If listing total is large relative to your budget, trim descriptions or split the profile.',
+    'compare.pick': 'compare', 'compare.picked': 'A picked — choose B', 'compare.title': 'experiment comparison',
+    'causal.title': 'skill change → outcome',
+    'causal.correlational': 'correlational (not attributable — other variables differ)',
+    'causal.multiSkill': 'multiple skills changed',
+    'causal.withinNoise': 'within noise — CIs overlap',
+    'causal.reason.suite': 'suite differs', 'causal.reason.model': 'model differs', 'causal.reason.runtime': 'runtime differs',
+    'compare.metric': 'metric', 'compare.caveat': 'paired on identical tasks; with small n, differences within overlapping CIs are noise.',
+    'na': 'n/a', 'partial': 'partial dims',
+    'panel.prompt': 'prompt (what this run was asked)',
+    'ctx.help.title': 'ⓘ what do these numbers mean?',
+    'ctx.help.body': 'Each round = one API request. Every round the model re-reads everything so far — system prompt + tool definitions + skill listing + full conversation history. That whole bundle is the "context" of the round, so round #1 already carries tens of thousands of tokens before your prompt.\nfresh input = context not served from cache (full price) · cache read = context reused from cache (~90% cheaper) · cache write = context newly written to cache this round · output = tokens the model generated.\ncontext of a round = fresh input + cache read + cache write.\n⚠ A big context Δ with little new content usually is NOT real growth: when cache boundaries shift, previously-fresh tokens get re-counted as cache writes (billing semantics). The per-round attribution line separates real content (output / tool results / injected text) from this artifact.',
+    'round.ctxDelta': 'Δ',
+    'round.entered': 'what entered context since the previous round',
+    'round.prevOut': 'previous round output',
+    'round.toolResults': 'tool results (est.)',
+    'round.injected': 'user / runtime-injected text (est.)',
+    'round.injectedUser': 'user-injected text (est.)',
+    'round.injectedHarness': 'injected by harness/runtime (reminders/hooks mixed, est.)',
+    'round.skillBody': 'SKILL.md body',
+    'round.unattributed': 'cache-boundary rewrite / hidden runtime injection (billing artifact, not real content growth)',
+    'round.firstNote': 'round #1 context already contains the system prompt, tool definitions, skill listing and runtime-injected files — not just your prompt.',
+    'user.msg': 'user',
+    'user.attachment': 'runtime-injected',
+    'user.chars': 'chars',
+    'panel.runtime': 'runtime under test',
+    'rt.model': 'model', 'rt.endpoint': 'LLM endpoint', 'rt.service': 'service command',
+    'rt.envKeys': 'env passed (key names only — values are never stored)',
+    'rt.help.title': 'ⓘ how external-runtime testing works (BYOK, n/a dimensions)',
+    'rt.help.body': 'aiide started this product itself (runtime.service), injected model/provider via environment variables, drove it through its own API, and tore it down afterwards — so every run is guaranteed to hit the model shown above, never a stale manually-started instance.\nBYOK: your API key travels only through environment variables (this shell, or <data-dir>/service.env) into the service under test. aiide never stores or records it; only key NAMES appear here.\nDimensions depend on what the runtime reports: with per-turn token usage on the wire, context hygiene (H), token stats and cost are real measured values; without it they show n/a instead of a fake-perfect score, and the composite is renormalized over available dimensions ("partial dims"). Correctness (C), process quality (P, from the live tool-call trace) and reliability (R) are always scored when a trace exists.',
+    'exp.externalRuntime': 'external runtime:',
+    'compare.crossRuntime': '⚠ cross-runtime / cross-provider comparison: model AND harness differ at the same time — attribute results to the runtime+model combination, not the model alone. Dimensions one side cannot report (H, token efficiency) show n/a and are excluded from its composite (weights renormalized).',
+    'th.runtime': 'runtime',
+    'compare.showQuestion': 'show question',
+    'export.png': 'PNG', 'export.pngTip': 'export the current view as a full-page image (rendered locally)',
+    'export.html': 'HTML', 'export.htmlTip': 'export the current view as a self-contained static HTML report',
+    'copy.json': 'copy JSON', 'copy.jsonTip': 'copy this record as JSON to the clipboard (local, read-only)', 'copy.done': 'copied',
+    'search.ph': 'search…  Ctrl/⌘+F', 'search.title': 'full-text search',
+    'search.resultsFor': 'runs whose contents match', 'search.empty': 'no run contents matched',
+    'search.enterHint': 'press Enter to search inside run contents', 'th.snippet': 'match',
+    'tip.ctx': 'context this round = everything the model re-reads for this one API request (system prompt + tool definitions + skill listing + conversation history) = fresh input + cache read + cache write. That is why round #1 already carries tens of thousands of tokens.',
+    'tip.delta': 'context growth vs the previous round. ⚠ a large Δ with little new content is usually a cache-boundary rewrite (billing artifact, previously-fresh tokens re-counted as cache writes), NOT real growth — expand the round for the attribution line.',
+    'tip.compact.confirmed': 'compact boundary confirmed (compact-boundary event in the session log)',
+    'tip.compact.inferred': 'inferred from the negative residual (inferred — no compact-boundary event recorded)',
+    'tip.freshIn': 'input tokens NOT served from cache this round — billed at full price.',
+    'tip.cacheR': 'tokens reused from the prompt cache — ~90% cheaper than fresh input.',
+    'tip.cacheW': 'tokens newly written to the cache this round; from the next round on they come back as cache reads.',
+    'tip.out': 'tokens the model generated this round.',
+    'panel.metadata': 'metadata',
+    'md.env': 'environment', 'md.metaCap': 'meta & captured', 'md.ann': 'annotations',
+    'md.annNote': 'post-hoc notes — stored in a sidecar file, the experiment file itself is never modified',
+    'md.addNote': '+ add note', 'md.save': 'save', 'md.cancel': 'cancel', 'md.confirm': 'confirm?',
+    'md.edit': 'edit', 'md.delete': 'delete', 'md.keyPh': 'key', 'md.valPh': 'value',
+    'md.errKeyRequired': 'key is required', 'md.errKeyExists': 'key already exists',
+    'md.errKeyInvalid': 'letters, digits, . _ - only (max 64)',
+    'md.saved': 'saved', 'md.deleted': 'deleted', 'md.saveFailed': 'save failed: ',
+    'md.corrupt': '⚠ annotations file was corrupt — starting fresh',
+    'md.runtimeVer': 'runtime version', 'md.suiteRow': 'suite file', 'md.pricing': 'pricing override', 'md.modelRow': 'model',
+    'md.sourceTip': 'where this value came from',
+    'md.source.cli': '--meta', 'md.source.suite': 'suite file', 'md.source.defaults': 'settings.json', 'md.source.captured': 'auto-captured',
+    'panel.diff': 'metadata diff', 'diff.showAll': 'show all', 'diff.onlyDiff': 'differences only',
+    'diff.none': '✓ no metadata differences', 'diff.count': 'dimensions differ', 'th.dimension': 'dimension',
+  },
+  'zh-hans': {
+    'subtitle': '· 本地优先的 agent 可观测',
+    'nav.runs': '运行记录', 'nav.experiments': '实验', 'nav.skills': 'Skills', 'nav.upgrades': '升级判定',
+    // U8 升级检视（verdict 优先、只读、治理中立）
+    'upg.empty': '暂无升级对比。<br><br>aiide upgrade run … 然后：aiide upgrade compare + report<br>报告落于 &lt;data-dir&gt;/upgrades/&lt;compare-id&gt;/',
+    'upg.title': '升级对比', 'upg.trendTab': '趋势', 'upg.listTab': '对比列表',
+    'th.verdict': 'verdict', 'th.recommend': '升级推荐', 'th.intent': '改动性质', 'th.arms': '新旧两版', 'th.pairs': '配对数',
+    'upg.flat': '— 持平',
+    'upg.recommend': '升级推荐', 'upg.mixedBundle': 'mixed-bundle', 'upg.baseline': '基线版本',
+    'upg.undecidable.insufficient-data': '无法判定（样本不足）',
+    'upg.undecidable.inconclusive': '无法判定（排除率超绊线）',
+    'intent.cost-opt': '省成本', 'intent.quality-fix': '修质量', 'intent.neutral-refactor': '中性重构',
+    'upg.minPairsLabel': '可信下限', 'upg.minPairsSkillLabel': '单 skill 可信下限',
+    'upg.enum.mixed-bundle': '混搭包', 'upg.enum.old-full': '旧版整包', 'upg.enum.new-full': '新版整包',
+    'verdict.cost-opt': 'cost-opt', 'verdict.quality-fix': 'quality-fix', 'verdict.neutral-refactor': 'neutral-refactor',
+    'verdict.insufficient-data': 'insufficient-data', 'verdict.inconclusive': 'inconclusive',
+    'verdict.gloss.cost-opt': '成本下降且质量未受损',
+    'verdict.gloss.quality-fix': '目标质量轴提升，成本未变差',
+    'verdict.gloss.neutral-refactor': '质量非劣，成本未变差',
+    'verdict.gloss.insufficient-data': '配对样本过少，无法判定——非「持平」，不可采用',
+    'verdict.gloss.inconclusive': '排除率触发绊线——判定被搁置，非「持平」，不可采用',
+    'upg.established': '成立（采用证据）', 'upg.notEstablished': '不成立',
+    'upg.evidenceNote': 'verdict 只是采用「证据」——采用永远是人类决策；本 dashboard 不提供任何采用/改写入口。',
+    'upg.axesQuality': '质量（L1/L2/L3 通过率 delta，pp）', 'upg.axesCost': '成本（配对 delta + bootstrap CI）',
+    'upg.axis.l1': 'L1 路由', 'upg.axis.l2': 'L2 verifier', 'upg.axis.l3': 'L3 终态',
+    'upg.axis.turns': '轮数', 'upg.axis.tokens': '等价 tokens', 'upg.axis.seconds': '秒',
+    'upg.heuristic': 'heuristic', 'upg.sigDown': '显著降', 'upg.sigUp': '显著升', 'upg.flowInc': '确认后中断',
+    'upg.perSkill': 'per-skill 诊断（仅供参考，不能单独决定采用）', 'upg.redlist': '关注名单',
+    'upg.perSkillPlain': '单个 skill 的诊断不是采用凭证——只有「整包结论」才算数；工具只给证据，采用由你决定。',
+    // 统计术语的人话 tooltip——与 U7 报告端文案一致
+    'tip.upg.pairs': 'n paired = 新旧两版都跑过的题目数——只比较共同题才公平',
+    'tip.upg.minPairs': 'MIN_PAIRS = 可信结论最低配对数，不足则显示「无法判定」',
+    'tip.upg.exclusion': '排除率 = 环境问题剔除占比，超 12% 强制「无法判定」',
+    'tip.upg.referenceOnly': '仅供参考 = 5-7 条样本的 CI 较粗糙，只作参考、不作定论',
+    'upg.flag.regressed': '退步', 'upg.flag.low-confidence': '低置信',
+    'upg.cleanSkills': '无 per-skill 退步或低置信 skill',
+    'upg.nextSteps': '下一步', 'upg.needPairs': '还需 {n} 条配对才能达到可信下限 {m}',
+    'upg.excludedCases': '被排除的 case（排在幸存集之外）',
+    'upg.reason.env-noise': 'env-noise', 'upg.reason.harness-halt': 'harness-halt',
+    'upg.action.add-scripted-reply': '补 scripted_reply', 'upg.action.inspect-env-noise': '检查 env-noise 重试白名单',
+    'upg.versionQuad': '版本四元组与生效 config', 'upg.openReport': '打开完整报告',
+    'upg.openReportTip': '单文件 HTML 报告（ECharts，离线可携）——同源新分页打开',
+    'upg.trendTitle': '升级趋势', 'upg.trendNote': '每条线是一个 case-id 在连续对比中的配对 delta；只在同一 cohort 内连线，跨 superseded 谱系断开（不接续）。',
+    'upg.trendEmpty': '暂无趋势——同一 cohort 内至少需要两次共享 case-id 的对比。',
+    'upg.cohort': '采用范围', 'upg.lineage': 'lineage', 'upg.exclusionPct': '排除率',
+    'skills.empty': '暂无 skill。<br><br>用 skill profile 跑一个实验后即可在此查看。',
+    'skills.title': 'skills', 'skill.title': 'skill',
+    'th.versions': '版本数', 'th.activationRate': '触发率', 'th.tokenTax': '列表开销', 'th.usedIn': '实验数',
+    'skill.card.activation': '触发率', 'skill.card.listing': '列表开销（每次请求）',
+    'skill.card.body': '正文（触发时）', 'skill.card.experiments': '实验数', 'skill.card.meanScore': '平均分',
+    'skill.card.runs': '运行数',
+    'skill.neverTriggered': '已安装但从未触发——纯 context 税',
+    'skill.evolution': '版本演变与分数趋势', 'skill.usedIn': '用到此 skill 的实验',
+    'skill.cohortNote': '趋势线只在同一 comparability cohort（suite·model·runtime）内连线；每种颜色是一个 cohort——跨 cohort 的稀疏散点是诚实信号，不是缺陷。',
+    'skill.tokensUnit': 'tokens', 'skill.hashChange': 'hash 变化',
+    'ao.title': 'activation × outcome（触发有没有帮助？）',
+    'ao.triggered': '已触发', 'ao.notTriggered': '未触发', 'ao.never': '从未', 'ao.lowSample': '仅相关，样本不足',
+    'badge.degraded': 'degraded', 'badge.excluded': 'excluded',
+    'runs.empty': '暂无运行记录。<br><br>aiide ingest &lt;含 session jsonl 的目录&gt;<br>或：aiide lab run --suite suites/onchainos-basic.json',
+    'card.runs': '运行数', 'card.totalTokens': '总 tokens', 'card.estCost': '估算成本', 'card.toolErrors': '工具错误',
+    'card.errorRate': '错误率',
+    'th.started': '开始时间', 'th.run': '运行', 'th.model': '模型', 'th.rounds': '轮数',
+    'th.tokensInOut': 'tokens 入/出', 'th.cacheRW': 'cache 读/写', 'th.cost': '成本*', 'th.errors': '错误',
+    'th.skills': 'skills', 'th.experiment': '实验',
+    'runs.footnote': '* 成本为估算值，来自可配置价格表（.aiide/pricing.json）',
+    'prune.runs': '条运行', 'prune.oldest': '最旧', 'prune.hint': '可用以下指令清理：',
+    'prune.tip': '只读提示——dashboard 从不删除；在终端执行此指令（会要求确认）。',
+    'badge.warn': '警告',
+    'back.runs': '← 运行记录', 'back.experiments': '← 实验',
+    'card.duration': '总时长', 'card.inOutTokens': '入+出 tokens', 'card.cacheRead': 'cache 读取',
+    'card.peakContext': '峰值 context*',
+    'panel.contextPerRound': '每轮 context 占用 *估算值',
+    'panel.outputPerRound': '每轮输出 tokens',
+    'panel.attrStack': '每轮 context 增长归因（堆叠）',
+    'attr.compaction': 'context 收缩（compaction）',
+    'loop.suspected': '疑似 loop（确定性判定）',
+    'loop.identical': '相同输入', 'loop.repeatedErr': '连续报错',
+    'panel.perSkill': '按 skill 归因',
+    'th.skill': 'skill', 'th.time': '耗时', 'th.toolCalls': '工具调用',
+    'panel.timeline': '逐轮时间轴', 'live.on': '实时——有新 round 就追加',
+    'panel.sidechains': '侧链（子 agent）', 'sidechain.agent': 'agent', 'sidechain.rounds': '轮',
+    'round.out': '输出', 'round.ctx': 'ctx',
+    'chart.peak': '峰值', 'chart.limit': '上限', 'chart.round': '第', 'chart.maxOut': '最大输出 tokens', 'chart.noData': '暂无数据',
+    'exp.empty': '暂无实验。<br><br>aiide lab run --suite suites/onchainos-basic.json',
+    'th.created': '创建时间', 'th.tasks': '任务数', 'th.repeats': '重复次数', 'th.composite': '综合分',
+    'th.isolatedSkills': 'skills（隔离 profile）',
+    'badge.lowSample': '样本不足',
+    'exp.repeats': '次重复', 'exp.isolatedProfile': '隔离 profile：',
+    'badge.isolationOk': '隔离已验证', 'badge.isolationBad': '隔离未验证',
+    'card.composite': 'SkillScore 综合分', 'card.C': 'C 完成度', 'card.P': 'P 过程质量',
+    'card.R': 'R 可靠性', 'card.H': 'H context 卫生',
+    'exp.lowSampleNote': '部分任务重复次数少于 3 次——分数仅供参考，不可用于对比。',
+    'panel.decomposition': '分数分解（综合分 = 0.5C + 0.25P + 0.15R + 0.10H——效率仅作诊断，永不计入评分）',
+    'score.C': 'C 完成度', 'score.P': 'P 过程质量', 'score.R': 'R 可靠性', 'score.H': 'H context 卫生',
+    'task.title': '任务：', 'card.successRate': '成功率', 'card.wilson': 'wilson 95% CI',
+    'card.activation': 'skill 触发率', 'card.repeatsOk': '有效重复',
+    'task.efficiency': '效率（仅诊断——不计入评分）：均值',
+    'task.drilldown': '下钻：', 'task.repeatsWord': '次重复',
+    'panel.taskRuns': '任务运行 — 问了什么、答成怎样',
+    'panel.diagnostics': '深入诊断（runtime · context · 统计 · 观测 · 健康 · metadata）',
+    'task.checks': '判定', 'task.repOf': '代表：', 'task.noAnswer': '本任务未捕获回答（重复均被排除）',
+    'th.activated': '已触发', 'th.verifiers': '验证器', 'th.wall': '耗时', 'th.error': '错误',
+    'load.failed': '加载失败：',
+    'th.duration': '时长',
+    'timeline.expandAll': '全部展开', 'timeline.collapseAll': '全部收起',
+    'round.freshIn': '新输入', 'round.cacheR': 'cache 读', 'round.cacheW': 'cache 写',
+    'round.thinking': '思考过程', 'round.text': '助手输出',
+    'round.toolInput': '输入', 'round.toolResult': '结果', 'round.noContent': '（本轮无文本内容）',
+    'panel.contextInsights': 'context 与 skill 开销',
+    'ci.skill': 'skill', 'ci.listing': '列表开销（每次请求都付）', 'ci.body': 'SKILL.md 正文（触发时才加载）',
+    'ci.total': '合计', 'ci.firstRound': '实测首轮 context', 'ci.bodyMeasured': '实测已触发 skill 正文',
+    'ci.note': '列表开销 = skill 安装期间，name+description 注入每次请求的 system prompt。正文 = 仅在 skill 触发时加载。若列表合计相对预算过大，应精简 description 或拆分 profile。',
+    'compare.pick': '对比', 'compare.picked': '已选 A——再选 B', 'compare.title': '实验对比',
+    'causal.title': 'skill 改动 → 结果',
+    'causal.correlational': '仅相关（不可归因——其他变因并存）',
+    'causal.multiSkill': '多个 skill 同时改动',
+    'causal.withinNoise': '噪声范围内——CI 重叠',
+    'causal.reason.suite': 'suite 不同', 'causal.reason.model': 'model 不同', 'causal.reason.runtime': 'runtime 不同',
+    'compare.metric': '指标', 'compare.caveat': '按相同任务配对；样本量小时，CI 重叠范围内的差异视为噪声。',
+    'na': 'n/a', 'partial': '部分维度',
+    'panel.runtime': '被测 runtime',
+    'rt.model': '模型', 'rt.endpoint': 'LLM 端点', 'rt.service': '服务命令',
+    'rt.envKeys': '传入的环境变量（仅记录变量名——值不会被存储）',
+    'rt.help.title': 'ⓘ 外部 runtime 测试是怎么运作的？（BYOK、n/a 维度）',
+    'rt.help.body': '本实验由 aiide 亲自启动被测产品（runtime.service）：经环境变量注入 model/provider，通过其自身 API 驱动，跑完自动关闭——因此每次运行保证命中上方显示的模型，绝不会误打到手动启动的旧实例。\nBYOK：你的 API key 只经环境变量（本次 shell，或 <data-dir>/service.env）传给被测服务。aiide 不存储、不记录 key 的值，这里只显示变量名。\n维度取决于 runtime 回报了什么：接口上有逐轮 token 用量时，H（context 卫生）、token 统计与成本都是真实测量值；没有时显示 n/a 而非虚假满分，综合分按可用维度重新归一化（标注「部分维度」）。只要有 trace，C（正确性）、P（过程质量，来自实时工具调用 trace）、R（可靠性）始终为完整评分。',
+    'exp.externalRuntime': '外部 runtime：',
+    'compare.crossRuntime': '⚠ 跨 runtime / 跨 provider 对比：模型与 harness 同时不同——结果应归因到「runtime+model 组合」，而非模型本身。一侧无法回报的维度（H、token 效率）显示 n/a，且不计入其综合分（权重重归一化）。',
+    'th.runtime': 'runtime',
+    'compare.showQuestion': '展开题目',
+    'export.png': 'PNG', 'export.pngTip': '把当前视图导出为整页长图（本地渲染，不经网络）',
+    'export.html': 'HTML', 'export.htmlTip': '把当前视图导出为自包含的静态 HTML 报告',
+    'copy.json': '复制 JSON', 'copy.jsonTip': '把这条记录以 JSON 复制到剪贴板（本地、只读）', 'copy.done': '已复制',
+    'search.ph': '搜索…  Ctrl/⌘+F', 'search.title': '全文搜索',
+    'search.resultsFor': '内容命中的运行记录', 'search.empty': '没有运行记录内容命中',
+    'search.enterHint': '按 Enter 搜索运行记录内容', 'th.snippet': '命中片段',
+    'tip.ctx': '本轮 context = 模型这一次 API 请求实际重读的全部内容（system prompt + 工具定义 + skill 列表 + 对话历史）= 新输入 + cache 读 + cache 写。这也是第 1 轮就已有数万 tokens 的原因。',
+    'tip.delta': '相比上一轮的 context 增量。⚠ Δ 很大但新内容很少时，通常是 cache 边界重排（计费口径差：上轮的新输入被重新计为本轮 cache 写），并非真实增长——展开本轮可看归因行。',
+    'tip.compact.confirmed': '压缩边界已确认（compact-boundary）',
+    'tip.compact.inferred': '按负残差推断（inferred）',
+    'tip.freshIn': '本轮没有命中缓存的输入部分——按全价计费。',
+    'tip.cacheR': '从 prompt 缓存复用的部分——费用约为全价的 10%。',
+    'tip.cacheW': '本轮新写入缓存的部分——下一轮起会变成 cache 读回来。',
+    'tip.out': '模型本轮生成的 tokens。',
+    'panel.prompt': 'prompt（本次运行的提问）',
+    'ctx.help.title': 'ⓘ 这些数字是什么意思？',
+    'ctx.help.body': '每一轮 = 一次 API 请求。模型每轮都会重读到目前为止的全部内容——system prompt + 工具定义 + skill 列表 + 完整对话历史，这一整包就是该轮的 context。所以第 1 轮在你的 prompt 之外就已经带着几万 tokens。\n新输入 = 未命中缓存、按全价计费的部分 · cache 读 = 从缓存复用的部分（约省 90%）· cache 写 = 本轮新写入缓存的部分 · 输出 = 模型生成的 tokens。\n本轮 context 总量 = 新输入 + cache 读 + cache 写。\n⚠ 若某轮 Δ 很大但实际新内容很少，多半不是真实增长：cache 边界移动时，上一轮按「新输入」计的 tokens 会在这一轮被重新计为「cache 写」（计费语义）。每轮的归因行会把真实内容（输出 / tool 结果 / 注入文本）与这种计费假象分开。',
+    'round.ctxDelta': 'Δ',
+    'round.entered': '相比上一轮，新进入 context 的内容',
+    'round.prevOut': '上一轮的输出',
+    'round.toolResults': 'tool 结果（估算）',
+    'round.injected': '用户 / runtime 注入文本（估算）',
+    'round.injectedUser': '用户注入文本（user，估算）',
+    'round.injectedHarness': 'harness 注入（injected by harness/runtime）',
+    'round.skillBody': 'skill 正文（SKILL.md body）',
+    'round.unattributed': 'cache 边界重排 / 隐性注入（计费口径差，非真实内容增长）',
+    'round.firstNote': '第 1 轮的 context 已包含 system prompt、工具定义、skill 列表与 runtime 注入内容——不只是你的 prompt。',
+    'user.msg': '用户',
+    'user.attachment': 'runtime 注入',
+    'user.chars': '字符',
+    'panel.metadata': 'metadata',
+    'md.env': '环境快照', 'md.metaCap': 'meta 与 captured', 'md.ann': '注记',
+    'md.annNote': '事后补记——存于 sidecar 文件，实验原始文件永不被改动',
+    'md.addNote': '+ 添加注记', 'md.save': '保存', 'md.cancel': '取消', 'md.confirm': '确认?',
+    'md.edit': '编辑', 'md.delete': '删除', 'md.keyPh': '键', 'md.valPh': '值',
+    'md.errKeyRequired': '键不能为空', 'md.errKeyExists': '键已存在',
+    'md.errKeyInvalid': '仅限字母、数字、. _ -（最长 64）',
+    'md.saved': '已保存', 'md.deleted': '已删除', 'md.saveFailed': '保存失败：',
+    'md.corrupt': '⚠ 注记文件损坏——已重置为空',
+    'md.runtimeVer': 'runtime 版本', 'md.suiteRow': 'suite 文件', 'md.pricing': '价格表覆盖', 'md.modelRow': '模型',
+    'md.sourceTip': '这个值的来源',
+    'md.source.cli': '--meta 命令行', 'md.source.suite': 'suite 文件', 'md.source.defaults': 'settings.json', 'md.source.captured': '自动探测',
+    'panel.diff': 'metadata 对比', 'diff.showAll': '显示全部', 'diff.onlyDiff': '仅差异',
+    'diff.none': '✓ metadata 无差异', 'diff.count': '个维度不同', 'th.dimension': '维度',
+  },
+};
+let lang = localStorage.getItem('aiide-lang')
+  ?? (navigator.language?.toLowerCase().startsWith('zh') ? 'zh-hans' : 'en');
+if (!I18N[lang]) lang = 'en';
+const t = k => I18N[lang][k] ?? I18N.en[k] ?? k;
+function setLang(l) { lang = l; localStorage.setItem('aiide-lang', l); applyChrome(); render(); }
+function applyChrome() {
+  document.documentElement.lang = lang === 'zh-hans' ? 'zh-Hans' : 'en';
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.getElementById('lang').innerHTML =
+    `<button class="${lang === 'en' ? 'on' : ''}" onclick="setLang('en')">EN</button> ` +
+    `<button class="${lang === 'zh-hans' ? 'on' : ''}" onclick="setLang('zh-hans')">简中</button>`;
+  document.getElementById('toolbar').innerHTML =
+    `<button onclick="exportPng()" title="${t('export.pngTip')}">📷 ${t('export.png')}</button> ` +
+    `<button onclick="exportHtml()" title="${t('export.htmlTip')}">⬇ ${t('export.html')}</button>`;
+  const q = document.getElementById('q');
+  if (q) { q.placeholder = t('search.ph'); q.title = t('search.title'); }
+}
+
+// ---- export (local-only: PNG via vendored snapdom, HTML as a self-contained static report) ----
+function exportSlug() {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+  return `aiide-${(location.hash || '#runs').slice(1).replace(/[^\w.-]+/g, '_').slice(0, 80)}-${stamp}`;
+}
+async function exportPng() {
+  const result = await snapdom(document.body, { backgroundColor: getComputedStyle(document.body).backgroundColor, scale: 1.5 });
+  // NOT result.download(): snapdom revokes its blob URL right after click, which corrupts
+  // the file when the browser asks where to save. A data: URL has no lifetime to race.
+  const img = await result.toPng();
+  triggerDownload(img.src, exportSlug() + '.png');
+}
+function exportHtml() {
+  const doc = document.documentElement.cloneNode(true);
+  doc.querySelectorAll('script, #toolbar, #lang, #q, button').forEach(el => el.remove());
+  // static report: <details> stays natively expandable without any JS
+  const html = '<!doctype html>\n<!-- exported by aiide (local, read-only snapshot) -->\n' + doc.outerHTML;
+  triggerDownload(URL.createObjectURL(new Blob([html], { type: 'text/html' })), exportSlug() + '.html');
+}
+function triggerDownload(href, filename) {
+  const a = document.createElement('a');
+  a.href = href; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  // deliberately NOT revoking the blob URL: with "ask where to save" enabled the browser
+  // reads the blob only after the user picks a location — early revoke corrupts the file.
+  // The few KB per export are reclaimed when the tab closes.
+}
+
+// ---- S7 detail-panel: copy-JSON + persistent <details> collapse state ----
+// copyPayload holds the raw record for the view currently on screen so the copy button needs
+// no re-fetch. Read-only: copies to clipboard, never mutates anything.
+const copyPayload = { run: null, exp: null };
+async function clipboardWrite(text) {
+  try { await navigator.clipboard.writeText(text); return; }
+  catch { // clipboard API blocked (non-secure context) — fall back to a hidden textarea
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch { /* give up silently */ }
+    ta.remove();
+  }
+}
+async function copyJson(btn, kind) {
+  const data = copyPayload[kind];
+  if (!data) return;
+  await clipboardWrite(JSON.stringify(data, null, 2));
+  flashCopied(btn);
+}
+async function copyText(btn, text) { await clipboardWrite(text); flashCopied(btn); }
+function flashCopied(btn) {
+  if (btn.dataset.label == null) btn.dataset.label = btn.textContent;
+  btn.textContent = '✓ ' + t('copy.done');
+  clearTimeout(btn._flash);
+  btn._flash = setTimeout(() => { btn.textContent = btn.dataset.label; }, 1400);
+}
+
+// <details data-persist="TYPE"> remembers open/closed per section TYPE (not per instance),
+// so the preference carries across rounds and across runs (localStorage). One capture-phase
+// listener (toggle does not bubble) records every change; applyPersistedDetails re-applies
+// the stored preference after each render.
+function detailPref(type) { return localStorage.getItem('aiide-det-' + type); }
+document.addEventListener('toggle', (e) => {
+  const el = e.target;
+  if (el instanceof HTMLDetailsElement && el.dataset.persist)
+    localStorage.setItem('aiide-det-' + el.dataset.persist, el.open ? '1' : '0');
+}, true);
+function applyPersistedDetails(root) {
+  (root ?? document).querySelectorAll('details[data-persist]').forEach(el => {
+    const pref = detailPref(el.dataset.persist);
+    if (pref != null) el.open = pref === '1';
+  });
+}
+
+// ---- helpers -------------------------------------------------------------
+const $app = document.getElementById('app');
+const fmt = {
+  n: x => (x ?? 0).toLocaleString(),
+  ms: x => x >= 60000 ? (x/60000).toFixed(1)+'m' : x >= 1000 ? (x/1000).toFixed(1)+'s' : (x??0)+'ms',
+  usd: x => '$' + (x ?? 0).toFixed(4),
+  pct: x => ((x ?? 0) * 100).toFixed(0) + '%',
+  t: s => s ? new Date(s).toLocaleString(lang === 'zh-hans' ? 'zh-CN' : undefined) : '—',
+  esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
+};
+async function api(path) {
+  const r = await fetch('/api/' + path);
+  if (!r.ok) throw new Error(path + ' → ' + r.status);
+  return r.json();
+}
+
+// ---- routing ----
+window.addEventListener('hashchange', render);
+window.addEventListener('DOMContentLoaded', () => { applyChrome(); render(); initLiveEvents(); });
+async function render() {
+  const hash = location.hash || '#runs';
+  const [view, ...parts] = hash.slice(1).split('/');
+  const id = parts[0];
+  document.querySelectorAll('#nav a').forEach(a =>
+    a.classList.toggle('active', a.dataset.view === view || (['run', 'search'].includes(view) && a.dataset.view === 'runs') || (['experiment', 'compare'].includes(view) && a.dataset.view === 'experiments') || (view === 'skill' && a.dataset.view === 'skills') || (['upgrade', 'upgrade-trend'].includes(view) && a.dataset.view === 'upgrades')));
+  try {
+    if (view === 'runs') await viewRuns();
+    else if (view === 'run') await viewRun(decodeURIComponent(id));
+    else if (view === 'experiments') await viewExperiments();
+    else if (view === 'experiment') await viewExperiment(decodeURIComponent(id));
+    else if (view === 'compare') await viewCompare(decodeURIComponent(parts[0]), decodeURIComponent(parts[1] ?? ''));
+    else if (view === 'search') await viewSearch(decodeURIComponent(parts.join('/')));
+    else if (view === 'skills') await viewSkills();
+    else if (view === 'skill') await viewSkill(decodeURIComponent(parts.join('/')));
+    else if (view === 'upgrades') await viewUpgrades();
+    else if (view === 'upgrade') await viewUpgrade(decodeURIComponent(parts.join('/')));
+    else if (view === 'upgrade-trend') await viewUpgradeTrend();
+    else location.hash = '#runs';
+  } catch (e) {
+    $app.innerHTML = '<div class="empty">' + t('load.failed') + ' ' + fmt.esc(e.message) + '</div>';
+  }
+  applySearch(); // re-apply any live list filter after the view (re)renders
+}
+
+// ---- S9 live-tail: EventSource → append new rounds (never a full re-render) ----
+// One EventSource for the whole app (browser auto-reconnects on drop). Zero deps. On a `run`
+// event we append only the rounds not yet in the DOM for the open run; the runs list gets a cheap
+// refresh. If the server has no SSE endpoint or EventSource is missing, this degrades silently.
+function initLiveEvents() {
+  if (window.__es || typeof EventSource === 'undefined') return;
+  let es;
+  try { es = new EventSource('/api/events'); } catch { return; }
+  window.__es = es;
+  es.addEventListener('run', (e) => {
+    let runId; try { runId = JSON.parse(e.data).runId; } catch { return; }
+    const [view, id] = (location.hash || '#runs').slice(1).split('/');
+    if (view === 'run' && decodeURIComponent(id ?? '') === runId) appendNewRounds(runId);
+    else if (view === 'runs') viewRuns(); // list is not the append target — a cheap re-render is fine
+  });
+  es.onerror = () => { /* transient; EventSource reconnects on its own (retry hint from server) */ };
+}
+async function appendNewRounds(runId) {
+  const cont = document.getElementById('timeline-items');
+  if (!cont || cont.dataset.run !== runId) return;
+  let run;
+  try { ({ run } = await api('runs/' + encodeURIComponent(runId))); } catch { return; }
+  const items = computeRunItems(run);
+  const shown = cont.childElementCount; // one <details> per item, in order
+  if (items.length <= shown) return;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = items.slice(shown).map(it => it.kind === 'user' ? userRow(it.u) : roundRow(it.r)).join('');
+  const added = [...tpl.content.children];
+  cont.append(...added);
+  applyPersistedDetails(cont);
+  const dot = document.getElementById('live-dot');
+  if (dot) { dot.hidden = false; dot.classList.remove('pulse'); void dot.offsetWidth; dot.classList.add('pulse'); }
+}
+
+// ---- S8 full-text search: client list filter + Ctrl/⌘+F + optional server body grep ----
+// Ctrl/⌘+F focuses the box instead of the browser find (only when the box exists).
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) {
+    const q = document.getElementById('q');
+    if (q) { e.preventDefault(); q.focus(); q.select(); }
+  }
+});
+function searchKey(e) {
+  if (e.key === 'Escape') { e.target.value = ''; applySearch(); e.target.blur(); return; }
+  if (e.key === 'Enter') { // Enter dives into run *contents* via the read-only server grep
+    const q = e.target.value.trim();
+    if (q.length >= 2) location.hash = '#search/' + encodeURIComponent(q);
+  }
+}
+// live client-side filter of the currently-rendered list; hides non-matching rows + highlights hits
+function applySearch() {
+  const box = document.getElementById('q');
+  if (!box) return;
+  const q = box.value.trim().toLowerCase();
+  const view = (location.hash || '#runs').slice(1).split('/')[0];
+  if (view !== 'runs' && view !== 'experiments') return;
+  const body = $app.querySelector('tbody');
+  if (!body) return;
+  unmark(body);
+  body.querySelectorAll('tr.click').forEach(tr => {
+    const hit = !q || tr.textContent.toLowerCase().includes(q);
+    tr.style.display = hit ? '' : 'none';
+    if (q && hit) markText(tr, q);
+  });
+}
+function unmark(root) {
+  root.querySelectorAll('mark.hl').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));
+}
+// wrap case-insensitive matches of `needle` (already lowercased) in <mark> without touching
+// element attributes or event handlers — only text nodes are split.
+function markText(root, needle) {
+  if (!needle) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentNode && n.parentNode.nodeName !== 'MARK' && n.nodeValue.toLowerCase().includes(needle)
+      ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+  });
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const frag = document.createDocumentFragment();
+    const s = node.nodeValue, low = s.toLowerCase();
+    let i = 0, idx;
+    while ((idx = low.indexOf(needle, i)) >= 0) {
+      if (idx > i) frag.appendChild(document.createTextNode(s.slice(i, idx)));
+      const m = document.createElement('mark'); m.className = 'hl';
+      m.textContent = s.slice(idx, idx + needle.length);
+      frag.appendChild(m);
+      i = idx + needle.length;
+    }
+    if (i < s.length) frag.appendChild(document.createTextNode(s.slice(i)));
+    node.replaceWith(frag);
+  }
+}
+
+// ---- view: full-text search results (read-only /api/search grep over run JSON) ----
+async function viewSearch(q) {
+  const hits = await api('search?q=' + encodeURIComponent(q));
+  const hl = (snippet) => {
+    const esS = fmt.esc(snippet), esQ = fmt.esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return esS.replace(new RegExp(esQ, 'ig'), m => `<mark class="hl">${m}</mark>`);
+  };
+  $app.innerHTML = `
+    <p><a href="#runs">${t('back.runs')}</a></p>
+    <h2 style="margin:6px 0">${t('search.title')} <span class="muted">${t('search.resultsFor')} “${fmt.esc(q)}” · ${hits.length}</span></h2>
+    ${hits.length ? `<table><thead><tr><th>${t('th.run')}</th><th>${t('th.snippet')}</th></tr></thead><tbody>
+      ${hits.map(h => `<tr class="click" onclick="location.hash='#run/${encodeURIComponent(h.runId)}'">
+        <td><a>${fmt.esc(String(h.runId).slice(0, 8))}…</a></td>
+        <td class="muted" style="font-size:12px">${hl(h.snippet)}</td></tr>`).join('')}
+    </tbody></table>` : `<div class="empty">${t('search.empty')} “${fmt.esc(q)}”</div>`}`;
+}
+
+// ---- S14 view: skills list (the third nav tab — skill as a first-class noun) ----
+async function viewSkills() {
+  const skills = await api('skills');
+  if (!skills.length) { $app.innerHTML = '<div class="empty">' + t('skills.empty') + '</div>'; return; }
+  $app.innerHTML = `
+    <h2 style="margin:6px 0">${t('skills.title')}</h2>
+    <table><thead><tr><th>${t('th.skill')}</th><th>${t('th.versions')}</th><th>${t('th.activationRate')}</th><th>${t('th.tokenTax')}</th><th>${t('th.usedIn')}</th><th>${t('th.composite')}</th></tr></thead>
+    <tbody>${skills.map(s => `
+      <tr class="click" onclick="location.hash='#skill/${encodeURIComponent(s.name)}'">
+        <td><span class="badge skill">${fmt.esc(s.name)}</span>${s.neverTriggered ? ` <span class="badge warn">${t('skill.neverTriggered')}</span>` : ''}</td>
+        <td>${s.versions.length || '<span class="muted">—</span>'}</td>
+        <td>${s.meanActivation == null ? t('na') : fmt.pct(s.meanActivation)}</td>
+        <td class="muted">${s.meanListingTokens == null ? t('na') : '≈ ' + fmt.n(s.meanListingTokens)}</td>
+        <td>${s.experimentCount}</td>
+        <td>${s.meanComposite == null ? t('na') : `<b style="color:${scoreColor(s.meanComposite)}">${s.meanComposite.toFixed(3)}</b>`}</td>
+      </tr>`).join('')}</tbody></table>
+    <p class="muted">${t('skill.cohortNote')}</p>`;
+}
+
+// ---- S14 view: single skill profile (version timeline + activation/tax/score cards) ----
+async function viewSkill(name) {
+  const skills = await api('skills');
+  const s = skills.find(x => x.name === name);
+  if (!s) { $app.innerHTML = '<div class="empty">' + t('load.failed') + ' ' + fmt.esc(name) + '</div>'; return; }
+  $app.innerHTML = `
+    <p><a href="#skills">← ${t('skills.title')}</a></p>
+    <h2 style="margin:6px 0"><span class="badge skill">${fmt.esc(s.name)}</span></h2>
+    ${s.neverTriggered ? `<div class="panel" style="border-color:var(--warn)"><span class="badge warn">⚠</span> ${t('skill.neverTriggered')}</div>` : ''}
+    <div class="cards">
+      ${card(s.meanActivation == null ? t('na') : `<span style="color:${s.neverTriggered ? 'var(--warn)' : 'var(--fg)'}">${fmt.pct(s.meanActivation)}</span>`, t('skill.card.activation'))}
+      ${card(s.meanListingTokens == null ? t('na') : '≈ ' + fmt.n(s.meanListingTokens), t('skill.card.listing'))}
+      ${card(s.meanBodyTokens == null ? t('na') : '≈ ' + fmt.n(s.meanBodyTokens), t('skill.card.body'))}
+      ${card(s.experimentCount, t('skill.card.experiments'))}
+      ${card(s.meanComposite == null ? t('na') : `<b style="color:${scoreColor(s.meanComposite)}">${s.meanComposite.toFixed(3)}</b>`, t('skill.card.meanScore'))}
+    </div>
+    <div class="panel"><h3>${t('skill.evolution')}</h3>${skillTrendChart(s.experiments)}
+      <p class="muted" style="margin:6px 0 0">${t('skill.cohortNote')}</p></div>
+    <div class="panel"><h3>${t('skill.usedIn')}</h3>
+      <table><thead><tr><th>${t('th.created')}</th><th>${t('th.experiment')}</th><th>${t('th.model')}</th><th>${t('th.runtime')}</th><th>skill hash</th><th>${t('th.activationRate')}</th><th>${t('th.composite')}</th></tr></thead>
+      <tbody>${s.experiments.slice().reverse().map(e => `
+        <tr class="click" onclick="location.hash='#experiment/${encodeURIComponent(e.id)}'">
+          <td class="muted">${fmt.t(e.createdAt)}</td>
+          <td><a>${fmt.esc(e.suiteName)}</a>${e.degraded ? ` <span class="badge warn">${t('badge.degraded')}</span>` : ''}</td>
+          <td class="muted">${fmt.esc(e.model)}</td>
+          <td><span class="badge ${e.runtime === 'claude-code' ? 'skill' : ''}">${fmt.esc(e.runtime)}</span></td>
+          <td class="muted">${e.hash ? fmt.esc(e.hash.slice(0, 8)) : t('na')}</td>
+          <td>${e.activationRate == null ? t('na') : fmt.pct(e.activationRate)}</td>
+          <td>${e.composite == null ? t('na') : `<b style="color:${scoreColor(e.composite)}">${e.composite.toFixed(3)}</b>`}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+}
+
+// skill score trend over time: points are experiments (x=chronological, y=composite). Trend lines
+// connect ONLY within a comparability cohort (suite·model·runtime) — cross-cohort points are NOT
+// joined (a line would be a false apples-to-apples claim); each cohort gets its own colour. Null
+// composites render as hollow baseline markers; a hash change gets a ringed, larger point.
+function skillCohortKey(e) { return `${(e.suiteSha ?? '—').slice(0, 8)}·${e.model}·${e.runtime}`; }
+function skillTrendChart(experiments) {
+  const pts = experiments.map((e, i) => ({ ...e, i }));
+  if (!pts.length) return '<span class="muted">' + t('chart.noData') + '</span>';
+  const W = 520, H = 170, padL = 26, padR = 10, padT = 14, padB = 26;
+  const n = pts.length;
+  const x = i => n === 1 ? W / 2 : padL + i / (n - 1) * (W - padL - padR);
+  const y = v => padT + (1 - v) * (H - padT - padB);
+  const palette = ['var(--accent)', 'var(--purple)', 'var(--cyan)', 'var(--warn)', 'var(--ok)'];
+  const cohorts = [...new Set(pts.map(skillCohortKey))];
+  let svg = '';
+  for (const g of [0, 0.5, 1]) svg += `<line x1="${padL}" y1="${y(g)}" x2="${W - padR}" y2="${y(g)}" stroke="var(--border)" stroke-dasharray="2 3"/><text x="2" y="${y(g) + 3}" fill="var(--dim)" font-size="9">${g}</text>`;
+  cohorts.forEach((ck, ci) => {
+    const color = palette[ci % palette.length];
+    const cp = pts.filter(p => skillCohortKey(p) === ck && p.composite != null);
+    if (cp.length > 1) svg += `<polyline points="${cp.map(p => `${x(p.i)},${y(p.composite)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2" opacity="0.85"/>`;
+  });
+  pts.forEach((p, idx) => {
+    const color = palette[cohorts.indexOf(skillCohortKey(p)) % palette.length];
+    const hashChanged = idx > 0 && pts[idx - 1].hash !== p.hash;
+    if (p.composite == null) {
+      svg += `<circle cx="${x(p.i)}" cy="${H - padB}" r="3" fill="none" stroke="var(--dim)"><title>${fmt.esc(p.id)}: ${t('na')}</title></circle>`;
+    } else {
+      svg += `<circle cx="${x(p.i)}" cy="${y(p.composite)}" r="${hashChanged ? 5 : 3.5}" fill="${color}"${hashChanged ? ' stroke="var(--fg)" stroke-width="1.5"' : ''}><title>${fmt.esc(p.id)} · ${fmt.esc((p.hash ?? '').slice(0, 6))} · ${p.composite}${hashChanged ? ' · ' + t('skill.hashChange') : ''}</title></circle>`;
+    }
+  });
+  const legend = cohorts.map((ck, ci) => `<span class="dot" style="background:${palette[ci % palette.length]}"></span><span class="muted">${fmt.esc(ck)}</span>`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">${svg}</svg><div class="legend" style="margin-top:4px">${legend}</div>`;
+}
+
+// ---- view: runs list ----
+async function viewRuns() {
+  const runs = await api('runs');
+  if (!runs.length) { $app.innerHTML = '<div class="empty">' + t('runs.empty') + '</div>'; return; }
+  const totTok = runs.reduce((a, r) => a + r.tokens.in + r.tokens.out + r.tokens.cacheW + r.tokens.cacheR, 0);
+  $app.innerHTML = `
+    <div class="cards">
+      ${card(runs.length, t('card.runs'))}
+      ${(() => { // S5: error-rate is the observability headline — colour only when it crosses the bar
+        const er = errorRate(runs); const hot = er >= 0.2;
+        return card(`<span style="color:${hot ? 'var(--err)' : 'var(--fg)'}">${fmt.pct(er)}</span>`, t('card.errorRate'));
+      })()}
+      ${card(fmt.n(totTok), t('card.totalTokens'))}
+      ${card(fmt.usd(runs.reduce((a, r) => a + r.costUsd, 0)), t('card.estCost'))}
+      ${card(runs.reduce((a, r) => a + r.toolErrors, 0), t('card.toolErrors'))}
+    </div>
+    <table><thead><tr><th>${t('th.started')}</th><th>${t('th.run')}</th><th>${t('th.model')}</th><th>${t('th.rounds')}</th><th>${t('th.duration')}</th><th>${t('th.tokensInOut')}</th><th>${t('th.cacheRW')}</th><th>${t('th.cost')}</th><th>${t('th.errors')}</th><th>${t('th.skills')}</th><th>${t('th.experiment')}</th></tr></thead>
+    <tbody>${runs.map(r => `
+      <tr class="click" onclick="location.hash='#run/${encodeURIComponent(r.id)}'">
+        <td class="muted">${fmt.t(r.startedAt)}</td>
+        <td><a>${fmt.esc(r.id.slice(0, 8))}…</a>${r.warnings ? ` <span class="badge warn">${r.warnings} ${t('badge.warn')}</span>` : ''}</td>
+        <td class="muted">${fmt.esc(r.model ?? '—')}</td>
+        <td>${r.rounds}${r.sidechainRounds ? `<span class="muted">+${r.sidechainRounds}sc</span>` : ''}</td>
+        <td>${fmt.ms(r.durationMs)}</td>
+        <td>${fmt.n(r.tokens.in)} / ${fmt.n(r.tokens.out)}</td>
+        <td class="muted">${fmt.n(r.tokens.cacheR)} / ${fmt.n(r.tokens.cacheW)}</td>
+        <td>${fmt.usd(r.costUsd)}</td>
+        <td>${r.toolErrors ? `<span class="badge err">${r.toolErrors}</span>` : '<span class="muted">0</span>'}</td>
+        <td>${r.skills.map(s => `<a href="#skill/${encodeURIComponent(s)}" onclick="event.stopPropagation()"><span class="badge skill">${fmt.esc(s)}</span></a>`).join('')}</td>
+        <td class="muted">${r.meta.experimentId ? fmt.esc(r.meta.taskId + ' r' + r.meta.repeat) : '—'}</td>
+      </tr>`).join('')}</tbody></table>
+    <p class="muted">${t('runs.footnote')}</p>
+    ${(() => {
+      // S11: read-only retention nudge — silent until runs cross a threshold, then a dim line
+      // with a copy-only `aiide prune` command. The GUI never deletes (read-only iron rule).
+      const h = pruneHint(runs);
+      if (!h) return '';
+      return `<p class="muted" style="opacity:.7" title="${t('prune.tip')}">🗄 ${h.count} ${t('prune.runs')} · ${t('prune.oldest')} ${h.oldestDays}d — ${t('prune.hint')} <code>${fmt.esc(h.command)}</code>
+        <button class="btn" onclick="copyText(this,'${fmt.esc(h.command)}')">⧉</button></p>`;
+    })()}`;
+}
+
+// computeRunItems (interleaved timeline + per-round _delta/_attr attribution, incl. the tagged
+// five-class buckets) lives in web/obs.js — loaded via the module shim above; both the full
+// render and the S9 live-tail append call the shared export so the two never diverge.
+
+// ---- view: run detail (round-by-round) ----
+async function viewRun(id) {
+  const { run, metrics } = await api('runs/' + encodeURIComponent(id));
+  copyPayload.run = { run, metrics };
+  const tt = metrics.totals;
+
+  // read-only summary of the owning experiment's meta/captured (R4.10) — chips are optional context
+  let expChips = '';
+  if (run.meta?.experimentId) {
+    try {
+      const e = await api('experiments/' + encodeURIComponent(run.meta.experimentId));
+      const bits = [
+        ...Object.entries(e.meta ?? {}).map(([k, m]) => `${k}=${m.value}`),
+        ...Object.entries(e.captured ?? {}).map(([k, c]) => (c.value == null ? `${k} ✗` : `${k}=${c.value}`)),
+      ];
+      if (bits.length) expChips = ' · ' + bits.map(b => `<span class="badge">${fmt.esc(b)}</span>`).join('');
+    } catch { /* experiment file gone — chips stay empty */ }
+  }
+
+  // chat-flow timeline: interleave user-side events with assistant rounds, attributing each
+  // round's context growth to what entered context (shared with the live-tail append path)
+  const items = computeRunItems(run);
+  // S16: per-round stacked attribution (uses the _attr just computed) + deterministic loop scan
+  const attrStack = stackSeries(run.rounds);
+  // threshold N is configurable (localStorage aiide-loop-n), default 4 — high enough that a
+  // normal trace stays silent; only a genuine rabbit-hole crosses it.
+  const loopN = Math.max(2, parseInt(localStorage.getItem('aiide-loop-n') ?? '4', 10) || 4);
+  const loops = detectLoops(run.rounds, loopN);
+
+  $app.innerHTML = `
+    <p><a href="#runs">${t('back.runs')}</a></p>
+    <h2 style="margin:6px 0">${fmt.esc(run.id)} <button class="btn" title="${t('copy.jsonTip')}" onclick="copyJson(this,'run')">⧉ ${t('copy.json')}</button></h2>
+    <div class="muted">${fmt.esc(run.model ?? '')} · ${fmt.t(run.startedAt)} · ${fmt.esc(run.source)}${run.meta?.experimentId ? ` · <a href="#experiment/${encodeURIComponent(run.meta.experimentId)}">${fmt.esc(run.meta.taskId)} r${run.meta.repeat}</a>` : ''}${expChips}</div>
+    ${run.prompt ? `<div class="panel"><h3>${t('panel.prompt')}</h3><code class="res">${fmt.esc(run.prompt)}</code></div>` : ''}
+    <div class="cards">
+      ${card(tt.rounds, t('th.rounds'))}${card(fmt.ms(tt.durationMs), t('card.duration'))}
+      ${card(fmt.n(tt.tokens.in + tt.tokens.out), t('card.inOutTokens'))}
+      ${card(fmt.n(tt.tokens.cacheR), term(t('card.cacheRead'), t('tip.cacheR'), 'below'))}
+      ${card(fmt.usd(tt.costUsd), t('card.estCost'))}
+      ${card(fmt.n(metrics.peakContext), term(t('card.peakContext'), t('tip.ctx'), 'below'))}
+      ${card(tt.toolErrors, t('card.toolErrors'))}
+    </div>
+    ${loopBanner(loops)}
+    <div class="grid2">
+      <div class="panel"><h3>${t('panel.contextPerRound')}</h3>${sparkline(metrics.contextSeries.map(c => c.footprint), metrics.contextLimit)}</div>
+      <div class="panel"><h3>${t('panel.outputPerRound')}</h3>${barChart(run.rounds.map(r => r.usage.out))}</div>
+    </div>
+    ${attrStack.length ? `<div class="panel"><h3>${t('panel.attrStack')}</h3>${stackedAttrChart(attrStack)}
+      <div class="legend" style="margin-top:6px">
+        <span class="dot" style="background:var(--accent)"></span><b>${t('round.prevOut')}</b>
+        <span class="dot" style="background:var(--cyan)"></span><b>${t('round.toolResults')}</b>
+        <span class="dot" style="background:var(--purple)"></span><b>${t('round.injected')}</b>
+        <span class="dot" style="background:var(--dim)"></span><b>${t('round.unattributed')}</b>
+        <span class="dot" style="background:var(--ok)"></span><b>${t('attr.compaction')}</b>
+      </div></div>` : ''}
+    ${Object.keys(metrics.perSkill).length ? `<div class="panel"><h3>${t('panel.perSkill')}</h3>
+      <table><thead><tr><th>${t('th.skill')}</th><th>${t('th.rounds')}</th><th>${t('th.tokensInOut')}</th><th>${t('th.time')}</th><th>${t('th.toolCalls')}</th><th>${t('th.errors')}</th></tr></thead><tbody>
+      ${Object.entries(metrics.perSkill).map(([k, s]) => `<tr><td><span class="badge skill">${fmt.esc(k)}</span></td><td>${s.rounds}</td><td>${fmt.n(s.tokens.in)} / ${fmt.n(s.tokens.out)}</td><td>${fmt.ms(s.durationMs)}</td><td>${s.toolCalls}</td><td>${s.toolErrors || '<span class="muted">0</span>'}</td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+    <div class="panel"><h3>${t('panel.timeline')} <span id="live-dot" class="live-dot" hidden title="${t('live.on')}"></span>
+        <button class="btn" onclick="toggleRounds(true)">${t('timeline.expandAll')}</button>
+        <button class="btn" onclick="toggleRounds(false)">${t('timeline.collapseAll')}</button></h3>
+      <div id="timeline-items" data-run="${fmt.esc(run.id)}">${items.map(it => it.kind === 'user' ? userRow(it.u) : roundRow(it.r)).join('')}</div>
+    </div>
+    ${run.sidechains.length ? `<div class="panel"><h3>${t('panel.sidechains')}</h3>
+      ${run.sidechains.map(sc => `<div class="muted">${t('sidechain.agent')}: ${fmt.esc(sc.agentId)} — ${sc.rounds.length} ${t('sidechain.rounds')}</div>${sc.rounds.map(r => roundRow(r)).join('')}`).join('')}
+    </div>` : ''}`;
+  applyPersistedDetails($app);
+}
+
+function userRow(u) {
+  const preview = u.text.replace(/\s+/g, ' ').slice(0, 110);
+  const isAtt = u.kind === 'attachment';
+  return `<details class="round user-turn" ${isAtt ? 'style="opacity:.75"' : ''}>
+    <summary><span class="badge ${isAtt ? '' : 'ok'}">${t(isAtt ? 'user.attachment' : 'user.msg')}</span> <span class="muted">${fmt.esc(preview)}${u.text.length > 110 ? '…' : ''} · ${fmt.n(u.chars)} ${t('user.chars')} (≈${fmt.n(Math.round(u.chars / 4))} tokens)</span></summary>
+    <div class="round-body"><code class="res">${fmt.esc(u.text)}</code></div>
+  </details>`;
+}
+
+function toggleRounds(open) { document.querySelectorAll('details.round').forEach(d => { d.open = open; }); }
+
+function roundRow(r) {
+  const u = r.usage;
+  const ctxTotal = u.in + u.cacheR + u.cacheW;
+  const delta = r._delta;
+  const seg = (v, color, label) => (v > 0 && ctxTotal > 0)
+    ? `<div title="${label}: ${fmt.n(v)}" style="width:${Math.max(0.5, v / ctxTotal * 100)}%;background:${color}"></div>` : '';
+  return `<details class="round ${r.attributionSkill ? 'skill-round' : ''}" data-persist="round">
+    <summary>
+      <b>#${r.seq}</b>
+      ${r.attributionSkill ? `<span class="badge skill">${fmt.esc(r.attributionSkill)}</span>` : ''}
+      ${(r.declaredTriggers?.length || r.declaredRefReads?.length) ? `<span class="badge warn" title="本轮含 adapter 自报信号（declaredTriggers/declaredRefReads）${r.declaredTriggers?.length ? '：' + r.declaredTriggers.map(s => fmt.esc(s)).join(', ') : ''}">自报</span>` : ''}
+      ${r.toolCalls.map(tc => `<span class="badge ${tc.isError ? 'err' : ''}">${fmt.esc(tc.name)}${tc.skill ? ':' + fmt.esc(tc.skill) : ''}${tc.isError ? ' ✗' : ''}</span>`).join('')}
+      <span class="muted" style="float:right">${fmt.ms(r.durationMs)} · ${term(t('round.ctx') + ' ' + fmt.n(r.contextFootprint), t('tip.ctx'), 'right')}${delta != null ? ` ${term(`<b style="color:${deltaSignificant(delta, r.contextFootprint) ? (delta > 0 ? 'var(--warn)' : 'var(--ok)') : 'var(--dim)'}">(${delta >= 0 ? '+' : ''}${fmt.n(delta)})</b>`, t('tip.delta'), 'right')}` : ''} · ${term(t('round.out') + ' ' + fmt.n(u.out), t('tip.out'), 'right')}</span>
+    </summary>
+    <div class="round-body">
+      ${r.seq === 1 ? `<div class="muted" style="margin-bottom:6px">💡 ${t('round.firstNote')}</div>` : ''}
+      ${r._attr ? (() => {
+        // S4: contribution buckets in descending order (what changed & mattered goes first);
+        // `other` is a reconciliation residual (±), rendered separately — a negative residual at
+        // a compaction/cache-eviction boundary must never masquerade as a positive bucket.
+        const { buckets, residual, compactionKind } = attrContributions(r._attr);
+        const lbl = { prevOut: 'round.prevOut', toolRes: 'round.toolResults', injected: 'round.injected',
+          injectedUser: 'round.injectedUser', injectedHarness: 'round.injectedHarness', skillBody: 'round.skillBody' };
+        const parts = buckets.map(b => `<b>${t(lbl[b.key])}</b> ≈${fmt.n(b.val)}`).join(' · ');
+        const resTxt = `<b>${t('round.unattributed')}</b> ${residual >= 0 ? '+' : '−'}${fmt.n(Math.abs(residual))}`;
+        // tagged run, negative residual: the tooltip says whether the shrink is a parser-confirmed
+        // compact boundary or only inferred from the sign — rendering itself is unchanged
+        return `<div class="legend" style="margin:0 0 6px">${t('round.entered')} (${delta >= 0 ? '+' : ''}${fmt.n(delta)}):
+          ${parts} · ${term(resTxt, compactionKind ? t('tip.compact.' + compactionKind) : t('tip.delta'))}</div>`;
+      })() : ''}
+      <div class="seg-bar">
+        ${seg(u.in, 'var(--accent)', t('round.freshIn'))}${seg(u.cacheR, 'var(--cyan)', t('round.cacheR'))}${seg(u.cacheW, 'var(--warn)', t('round.cacheW'))}
+      </div>
+      <div class="legend">
+        <span class="dot" style="background:var(--accent)"></span>${term(`<b>${t('round.freshIn')}</b>`, t('tip.freshIn'))} ${fmt.n(u.in)}
+        <span class="dot" style="background:var(--cyan)"></span>${term(`<b>${t('round.cacheR')}</b>`, t('tip.cacheR'))} ${fmt.n(u.cacheR)}
+        <span class="dot" style="background:var(--warn)"></span>${term(`<b>${t('round.cacheW')}</b>`, t('tip.cacheW'))} ${fmt.n(u.cacheW)}
+        <span class="dot" style="background:var(--ok)"></span>${term(`<b>${t('round.out')}</b>`, t('tip.out'))} ${fmt.n(u.out)}
+      </div>
+      ${r.thinking ? `<details data-persist="thinking"><summary class="muted">${t('round.thinking')} (${fmt.n(r.thinkingChars)} chars)</summary><code class="res">${fmt.esc(r.thinking)}</code></details>` : ''}
+      ${r.text ? `<div class="muted">${t('round.text')}:</div><code class="res">${fmt.esc(r.text)}</code>`
+        : (!r.toolCalls.length ? `<div class="muted">${t('round.noContent')}</div>` : '')}
+      ${r.toolCalls.map(tc => `
+        <div class="tool-block">
+          <div class="th"><b>${fmt.esc(tc.name)}</b>${tc.skill ? ` · <span class="badge skill">${fmt.esc(tc.skill)}</span>` : ''}${tc.isError ? ` <span class="badge err">✗ error</span>` : ''}</div>
+          <div class="tb">
+            ${tc.input != null ? `<div class="muted">${t('round.toolInput')}:</div><code class="res">${fmt.esc(typeof tc.input === 'string' ? tc.input : JSON.stringify(tc.input, null, 2))}</code>` : ''}
+            ${tc.result != null ? `<div class="muted">${t('round.toolResult')}:</div><code class="res">${fmt.esc(tc.result)}</code>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>
+  </details>`;
+}
+
+// ---- view: experiments list ----
+async function viewExperiments() {
+  const exps = await api('experiments');
+  if (!exps.length) { $app.innerHTML = '<div class="empty">' + t('exp.empty') + '</div>'; return; }
+  const picked = sessionStorage.getItem('aiide-cmp');
+  $app.innerHTML = `
+    <table><thead><tr><th>${t('th.created')}</th><th>${t('th.experiment')}</th><th>${t('th.runtime')}</th><th>${t('th.model')}</th><th>${t('th.tasks')}</th><th>${t('th.repeats')}</th><th>${t('th.composite')}</th><th>${t('th.isolatedSkills')}</th><th></th></tr></thead>
+    <tbody>${exps.map(e => `
+      <tr class="click" onclick="location.hash='#experiment/${encodeURIComponent(e.id)}'">
+        <td class="muted">${fmt.t(e.createdAt)}</td>
+        <td><a>${fmt.esc(e.suiteName)}</a>${e.lowSample ? ` <span class="badge warn">${t('badge.lowSample')}</span>` : ''}${e.degraded ? ` <span class="badge warn" title="${e.excludedRepeats} excluded">${t('badge.degraded')}</span>` : ''}</td>
+        <td><span class="badge ${e.runtime === 'claude-code' ? 'skill' : ''}">${fmt.esc(e.runtime ?? 'claude-code')}</span></td>
+        <td class="muted">${fmt.esc(e.model)}</td><td>${e.taskCount}</td><td>${e.repeats}</td>
+        <td>${scoreHtml(e.composite)}</td>
+        <td>${e.skills.length
+          ? e.skills.slice(0, 5).map(s => `<a href="#skill/${encodeURIComponent(s)}" onclick="event.stopPropagation()"><span class="badge skill">${fmt.esc(s)}</span></a>`).join('') + (e.skills.length > 5 ? `<span class="muted">+${e.skills.length - 5}</span>` : '')
+          : '<span class="muted">—</span>'}</td>
+        <td><button class="btn" onclick="event.stopPropagation();pickCompare('${fmt.esc(e.id)}')">${picked === e.id ? t('compare.picked') : t('compare.pick')}</button></td>
+      </tr>`).join('')}</tbody></table>`;
+}
+
+function pickCompare(id) {
+  const first = sessionStorage.getItem('aiide-cmp');
+  if (!first) { sessionStorage.setItem('aiide-cmp', id); render(); return; }
+  sessionStorage.removeItem('aiide-cmp');
+  if (first === id) { render(); return; }
+  location.hash = `#compare/${encodeURIComponent(first)}/${encodeURIComponent(id)}`;
+}
+
+// ---- view: side-by-side experiment comparison ----
+async function viewCompare(idA, idB) {
+  const [a, b] = await Promise.all([api('experiments/' + encodeURIComponent(idA)), api('experiments/' + encodeURIComponent(idB))]);
+  const taskIds = [...new Set([...Object.keys(a.tasks), ...Object.keys(b.tasks)])];
+  const d3 = v => v == null ? t('na') : v.toFixed(3);
+  const row = (label, fa, fb, better) => {
+    const va = fa(), vb = fb();
+    const hl = (x, y) => (better && x != null && y != null && x !== y)
+      ? (better === 'high' ? (x > y) : (x < y)) ? 'style="color:var(--ok)"' : 'style="color:var(--dim)"' : '';
+    return `<tr><td class="muted">${label}</td><td ${hl(va?.raw, vb?.raw)}>${va?.txt ?? va}</td><td ${hl(vb?.raw, va?.raw)}>${vb?.txt ?? vb}</td></tr>`;
+  };
+  const num = (raw, txt) => ({ raw, txt });
+  $app.innerHTML = `
+    <p><a href="#experiments">${t('back.experiments')}</a></p>
+    <h2 style="margin:6px 0">${t('compare.title')}</h2>
+    ${causalCompareRow(a, b)}
+    <table><thead><tr><th>${t('compare.metric')}</th>
+      <th class="cmp-a">${fmt.esc(a.suiteName)} · ${fmt.esc(a.model)}<br><span class="muted">${fmt.t(a.createdAt)} · ${fmt.esc(a.runtime ?? 'claude-code')}</span></th>
+      <th class="cmp-b">${fmt.esc(b.suiteName)} · ${fmt.esc(b.model)}<br><span class="muted">${fmt.t(b.createdAt)} · ${fmt.esc(b.runtime ?? 'claude-code')}</span></th></tr></thead>
+    <tbody>
+      ${row('SkillScore', () => num(a.summary.composite, d3(a.summary.composite)), () => num(b.summary.composite, d3(b.summary.composite)), 'high')}
+      ${['C', 'P', 'R', 'H'].map(k => row(t('card.' + k), () => num(a.summary[k], d3(a.summary[k])), () => num(b.summary[k], d3(b.summary[k])), 'high')).join('')}
+      ${taskIds.map(tid => {
+        const ta = a.tasks[tid], tb = b.tasks[tid];
+        return `
+          <tr><td colspan="3" style="background:var(--panel2)">
+            <details><summary style="cursor:pointer"><b>${fmt.esc(tid)}</b> <span class="muted" style="font-size:11px">▸ ${t('compare.showQuestion')}</span></summary>
+              <div class="muted" style="margin-top:6px;white-space:pre-wrap">${fmt.esc(ta?.prompt ?? tb?.prompt ?? '')}</div>
+            </details></td></tr>
+          ${row(t('th.composite'), () => num(ta?.composite, d3(ta?.composite)), () => num(tb?.composite, d3(tb?.composite)), 'high')}
+          ${row(t('card.successRate'), () => num(ta?.successRate, ta ? fmt.pct(ta.successRate) + ` <span class="muted">CI[${ta.wilsonCi.lo.toFixed(2)},${ta.wilsonCi.hi.toFixed(2)}]</span>` : t('na')), () => num(tb?.successRate, tb ? fmt.pct(tb.successRate) + ` <span class="muted">CI[${tb.wilsonCi.lo.toFixed(2)},${tb.wilsonCi.hi.toFixed(2)}]</span>` : t('na')), 'high')}
+          ${row(t('card.activation'), () => num(ta?.activationRate, ta?.activationRate == null ? t('na') : fmt.pct(ta.activationRate)), () => num(tb?.activationRate, tb?.activationRate == null ? t('na') : fmt.pct(tb.activationRate)), 'high')}
+          ${row(t('th.time'), () => num(ta?.efficiency.meanDurationMs, ta ? fmt.ms(ta.efficiency.meanDurationMs) : t('na')), () => num(tb?.efficiency.meanDurationMs, tb ? fmt.ms(tb.efficiency.meanDurationMs) : t('na')), 'low')}
+          ${row(t('card.estCost'), () => num(ta?.efficiency.meanCostUsd, ta ? fmt.usd(ta.efficiency.meanCostUsd) : t('na')), () => num(tb?.efficiency.meanCostUsd, tb ? fmt.usd(tb.efficiency.meanCostUsd) : t('na')), 'low')}
+        `;
+      }).join('')}
+    </tbody></table>
+    ${metadataDiffPanel(a, b)}
+    ${runtimeInfoDiffPanel(a, b)}
+    ${!cohortComparable(a, b).comparable || (a.service?.endpointHost ?? null) !== (b.service?.endpointHost ?? null)
+      ? `<p class="muted" style="border-left:3px solid var(--warn);padding-left:10px">${t('compare.crossRuntime')}</p>` : ''}
+    <p class="muted">${t('compare.caveat')}</p>`;
+}
+
+// §4 runtime 自述 diff — descriptor diff (name/version/prompt sha/tools 增删) rendered ALONGSIDE the
+// metric table above, framed by the mandated concurrent-factors sentence: these are 同期变更的
+// 环境因素, juxtaposed with the metric deltas, NEVER a causal attribution (no 因果 wording anywhere,
+// test-banned). One side without runtime_info → the honest 无 runtime 自述 placeholder row; neither
+// side → no section at all (absence already shows on each experiment's own environment card).
+function runtimeInfoDiffPanel(a, b) {
+  const d = runtimeInfoDiff(a.environment ?? {}, b.environment ?? {});
+  if (!d) return '';
+  const head = `<div class="panel"><h3>runtime 自述对比 <span class="muted" style="font-size:12px">（runtime_info descriptor diff）</span></h3>
+    <p class="muted" style="font-size:12px;border-left:3px solid var(--dim);padding-left:10px">${fmt.esc(d.framing)}</p>`;
+  if (d.oneSided) {
+    // one-sided: name the side WITHOUT a self-description; no descriptor diff is fabricated
+    return `${head}<div class="muted">${d.side === 'A' ? 'A' : 'B'} 侧：${fmt.esc(d.placeholder)}（no runtime_info）——无法做描述符 diff；另一侧的自述见其实验详情页环境卡</div></div>`;
+  }
+  const cell = (txt, hl) => `<td class="${hl ? 'diff-hl' : 'muted'}">${txt}</td>`;
+  const row = (k, va, vb, changed) => `<tr${changed ? ' class="diff-row"' : ''}><td class="muted">${k}</td>${cell(va, changed)}${cell(vb, changed)}</tr>`;
+  const sp = d.systemPrompt;
+  const spCell = (sha, bytes) => sha ? `<code>${fmt.esc(sha)}</code>${bytes != null ? ` · ${fmt.n(bytes)} B` : ''}` : fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt);
+  const spRow = sp
+    ? row(`system prompt <span class="muted">${sp.changed ? '（sha 变了）' : '（sha 未变）'}</span>`,
+        spCell(sp.shaShortA, sp.bytesA),
+        spCell(sp.shaShortB, sp.bytesB) + (sp.changed && sp.bytesDelta != null ? ` <span class="muted">（bytes Δ ${sp.bytesDelta >= 0 ? '+' : ''}${fmt.n(sp.bytesDelta)}）</span>` : ''),
+        sp.changed)
+    : row('system prompt', fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt), fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt), false);
+  // tools 增/删/不变 — unknowable when a side did not self-describe its list (never a fake empty diff)
+  const tl = d.tools;
+  const toolsChanged = !tl.unknown && (tl.added.length > 0 || tl.removed.length > 0);
+  const toolsBody = tl.unknown
+    ? '<span class="muted">一侧未自述工具清单——增删不可知（not reported）</span>'
+    : [
+        tl.added.length ? `<span style="color:var(--ok)">＋ ${tl.added.map(fmt.esc).join('，')}</span>` : '',
+        tl.removed.length ? `<span style="color:var(--err)">－ ${tl.removed.map(fmt.esc).join('，')}</span>` : '',
+        `<span class="muted">不变（unchanged）${tl.unchanged.length} 个${tl.unchanged.length ? '：' + tl.unchanged.map(fmt.esc).join('，') : ''}</span>`,
+      ].filter(Boolean).join(' · ');
+  return `${head}
+    <table><thead><tr><th>维度（descriptor）</th><th class="cmp-a">A</th><th class="cmp-b">B</th></tr></thead><tbody>
+      ${row('name', fmt.esc(d.name.a ?? '—'), fmt.esc(d.name.b ?? '—'), d.name.changed)}
+      ${row('version', fmt.esc(d.version.a ?? '—'), fmt.esc(d.version.b ?? '—'), d.version.changed)}
+      ${spRow}
+      <tr${toolsChanged ? ' class="diff-row"' : ''}><td class="muted">tools</td><td colspan="2" class="${toolsChanged ? 'diff-hl' : 'muted'}">${toolsBody}</td></tr>
+    </tbody></table>
+  </div>`;
+}
+
+// S15: skill-version causal row at the top of compare. "⇒" (attributable) is gated on a strict
+// comparability cohort — same suite bytes + model + runtime AND exactly one skill hash changed;
+// otherwise the delta is correlational. The within-noise caveat appears only when the delta is
+// backed by no significant task movement (all Wilson CIs still overlap). Read-only.
+function causalCompareRow(a, b) {
+  const deltas = skillHashDeltas(a, b);
+  if (!deltas.length) return ''; // no skill changed → no variable to attribute, no row
+  const gate = cohortComparable(a, b);
+  const causal = gate.comparable && deltas.length === 1;
+  const sg = (x, dp) => (x >= 0 ? '+' : '') + x.toFixed(dp);
+  // Wave 1: a composite can be null (all-excluded / floor breach) — a delta against null is
+  // meaningless, so show n/a rather than treating null as 0 and inventing a change.
+  const cA = a.summary?.composite, cB = b.summary?.composite;
+  const dComp = (cA != null && cB != null) ? cB - cA : null;
+  const dC = (a.summary?.C != null && b.summary?.C != null) ? b.summary.C - a.summary.C : null;
+  const actA = meanActivation(a), actB = meanActivation(b);
+  const dAct = (actA != null && actB != null) ? (actB - actA) * 100 : null;
+  const extras = [dC != null ? `C ${sg(dC, 2)}` : null, dAct != null ? `activation ${sg(dAct, 0)}pp` : null].filter(Boolean).join(' · ');
+  const score = `SkillScore ${dComp == null ? t('na') : sg(dComp, 3)}${extras ? ` <span class="muted">(${extras})</span>` : ''}`;
+  const noise = causal && dComp != null && causalWithinNoise(a, b) ? ` <span class="badge warn">${t('causal.withinNoise')}</span>` : '';
+  const skillList = deltas.map(d =>
+    `<span class="badge skill">${fmt.esc(d.name)}</span> <span class="muted">${fmt.esc((d.hashA ?? '—').slice(0, 6))}→${fmt.esc((d.hashB ?? '—').slice(0, 6))}</span>`).join(' , ');
+  const body = causal
+    ? `${skillList} <span style="color:var(--accent);font-weight:bold"> ⇒ </span> ${score}${noise}`
+    : `${skillList} <span class="muted"> — ${t('causal.correlational')}${deltas.length > 1 ? ' (' + t('causal.multiSkill') + ')' : ''}${gate.reasons.length ? ': ' + gate.reasons.map(r => t('causal.reason.' + r)).join(', ') : ''}</span> ${score}`;
+  return `<div class="panel"><h3>${t('causal.title')}</h3><div>${body}</div></div>`;
+}
+
+// ---- view: experiment scorecard ----
+async function viewExperiment(id) {
+  const e = await api('experiments/' + encodeURIComponent(id));
+  copyPayload.exp = e;
+  const s = e.summary;
+  $app.innerHTML = `
+    <p><a href="#experiments">${t('back.experiments')}</a></p>
+    <h2 style="margin:6px 0">${fmt.esc(e.suiteName)} <span class="muted">${fmt.esc(e.model)} · ${e.repeats} ${t('exp.repeats')}</span> <button class="btn" title="${t('copy.jsonTip')}" onclick="copyJson(this,'exp')">⧉ ${t('copy.json')}</button></h2>
+    <div class="muted">${fmt.t(e.createdAt)} · ${e.profile.skills.length
+      ? `${t('exp.isolatedProfile')} ${e.profile.skills.map(x => `<a href="#skill/${encodeURIComponent(x)}"><span class="badge skill">${fmt.esc(x)}</span></a>`).join('')}`
+      : `${t('exp.externalRuntime')} <span class="badge skill">${fmt.esc(e.runtime ?? '')}</span>`}
+      ${e.isolationVerified == null ? '' : e.isolationVerified ? `<span class="badge ok">${t('badge.isolationOk')}</span>` : `<span class="badge err">${t('badge.isolationBad')}</span>`}
+      ${s.degraded ? ` <span class="badge warn" title="${s.excludedRepeats ?? 0} excluded">${t('badge.degraded')}</span>` : ''}</div>
+    <div class="cards">
+      ${card(scoreHtml(s.composite), t('card.composite') + (s.compositePartial ? ` (${t('partial')})` : ''))}
+      ${card(s.C == null ? t('na') : s.C.toFixed(2), t('card.C'))}${card(s.P == null ? t('na') : s.P.toFixed(2), t('card.P'))}
+      ${card(s.R == null ? t('na') : s.R.toFixed(2), t('card.R'))}${card(s.H == null ? t('na') : s.H.toFixed(2), t('card.H'))}
+    </div>
+    ${s.lowSample || s.degraded ? `<div class="panel" style="border-color:var(--warn)">${s.lowSample ? `<span class="badge warn">${t('badge.lowSample')}</span> ${t('exp.lowSampleNote')}` : ''}${s.degraded ? ` <span class="badge warn">${t('badge.degraded')}</span> ${s.excludedRepeats ?? 0} ${t('badge.excluded')}` : ''}</div>` : ''}
+    <div class="panel"><h3>${t('panel.decomposition')}</h3>
+      ${scoreBar(t('score.C'), s.C, 'var(--ok)')}${scoreBar(t('score.P'), s.P, 'var(--accent)')}
+      ${scoreBar(t('score.R'), s.R, 'var(--purple)')}${scoreBar(t('score.H'), s.H, 'var(--cyan)')}
+    </div>
+    <div class="section-label">${t('panel.taskRuns')} <span style="color:var(--fg)">${Object.keys(e.tasks).length}</span></div>
+    ${Object.entries(e.tasks).map(([tid, tk]) => taskPanel(tid, tk, e.profile?.skills ?? [])).join('')}
+    ${diagnosticsSection(e)}`;
+  annRender();
+  applyPersistedDetails($app);
+}
+
+// Deep-diagnostics section (collapsed by default). Everything that answers "why/how deep" — runtime
+// descriptor, context tax, upgrade/sequence stats, obs, health, metadata — lives below the focal
+// task runs. filter(Boolean) drops panels that render nothing (claude-code runtime, no context
+// insights, pre-metadata experiments) so the section never shows an empty shell; if ALL are empty
+// the section itself is absent. Open/closed state persists per-user via applyPersistedDetails.
+function diagnosticsSection(e) {
+  const inner = [runtimePanel(e), contextInsightsPanel(e.contextInsights), expStatsPanel(e),
+                 runObsPanel(e), runHealthPanel(e), metadataPanel(e)].filter(Boolean).join('');
+  if (!inner) return '';
+  return `<details class="diag-section" data-persist="exp-diagnostics"><summary>${t('panel.diagnostics')}</summary>${inner}</details>`;
+}
+
+// runtime-under-test card: what was benchmarked, which endpoint, which env keys crossed the
+// boundary — names only, values are never persisted (BYOK promise, see rt.help tooltip)
+function runtimePanel(e) {
+  if (!e.service && (e.runtime ?? 'claude-code') === 'claude-code') return '';
+  const sv = e.service ?? {};
+  return `<div class="panel"><h3>${t('panel.runtime')} — ${fmt.esc(e.runtime ?? '')}</h3>
+    <div class="cards">
+      ${card(fmt.esc(sv.model ?? e.model), t('rt.model'))}
+      ${sv.endpointHost ? card(fmt.esc(sv.endpointHost), t('rt.endpoint')) : ''}
+    </div>
+    ${sv.cmd ? `<div class="diag muted">${t('rt.service')}: <code>${fmt.esc(sv.cmd)}</code>${sv.cwd ? ` <span class="muted">@ ${fmt.esc(sv.cwd)}</span>` : ''}</div>` : ''}
+    ${sv.envKeys?.length ? `<div class="diag muted" style="margin-top:4px">${t('rt.envKeys')}: ${sv.envKeys.map(k => `<span class="badge">${fmt.esc(k)}</span>`).join(' ')}</div>` : ''}
+    ${runtimeInfoHtml(e)}
+    <div style="margin-top:8px">${infoTip(t('rt.help.title'), t('rt.help.body'))}</div>
+  </div>`;
+}
+
+// §4 runtime 自述 (runtime_info) section inside the runtime-under-test card. Consumes
+// OBS.runtimeInfoView (pure view model, all copy constants live in obs.js). Honesty rules:
+// no runtime_info → the honest placeholder line, never a blank (null-not-zero); a partial
+// descriptor gets a per-dimension 未自述 placeholder; the fingerprint badge discloses
+// text-captured (harness-recomputed, verifiable) vs self-reported; tokensEst 恒标估算;
+// deduped drift digests >1 → drift warning. claude-code experiments carry no runtime_info
+// channel and (without a service) never reach this panel — 照旧简洁, nothing changes for them.
+function runtimeInfoHtml(e) {
+  const v = runtimeInfoView(e.environment ?? {});
+  if (!v.present) return `<div class="diag muted" style="margin-top:6px">${fmt.esc(v.placeholder)}</div>`;
+  const sp = v.systemPrompt;
+  const spLine = sp
+    ? `<code>${fmt.esc(sp.shaShort ?? '—')}</code>${sp.bytes != null ? ` · ${fmt.n(sp.bytes)} B` : ''}${sp.tokensEst != null ? ` · ≈ ${fmt.n(sp.tokensEst)} tokens <span class="muted">（估算，estimate）</span>` : ''} <span class="badge ${sp.badge.tone === 'ok' ? 'ok' : 'warn'}">${fmt.esc(sp.badge.word)}</span>`
+    : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt)}</span>`;
+  const toolsLine = v.tools
+    ? (v.tools.length
+        ? v.tools.map(tl => `<span class="badge">${fmt.esc(tl.name)}${tl.kind ? ` <span class="muted">${fmt.esc(tl.kind)}</span>` : ''}</span>`).join(' ')
+        : '<span class="muted">自述工具清单为空（0 tools）</span>')
+    : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.tools)}</span>`;
+  const defaultsLine = v.defaults != null
+    ? `<code>${fmt.esc(JSON.stringify(v.defaults))}</code>`
+    : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.defaults)}</span>`;
+  return `<div style="margin-top:8px"><b>runtime 自述</b> <span class="muted" style="font-size:12px">（runtime_info，指纹形式）</span>${v.driftNote ? ` <span class="badge warn" title="${fmt.esc(v.driftDigests.map(d => d.slice(0, 12)).join(' · '))}">${fmt.esc(v.driftNote)}</span>` : ''}
+    <div class="diag muted" style="margin-top:4px">${fmt.esc(v.name ?? '—')}${v.version ? ` <span class="badge">v${fmt.esc(v.version)}</span>` : ''}</div>
+    <div class="diag" style="margin-top:4px"><span class="muted">system prompt:</span> ${spLine}</div>
+    <div class="diag" style="margin-top:4px"><span class="muted">tools:</span> ${toolsLine}</div>
+    <div class="diag" style="margin-top:4px"><span class="muted">defaults:</span> ${defaultsLine}</div>
+  </div>`;
+}
+
+// small ⓘ icon + short label; full explanation appears as a hover/focus popover (below the icon)
+function infoTip(title, body) {
+  const label = String(title).replace(/^ⓘ\s*/, '');
+  return `<span class="tip below" tabindex="0"><span class="tipbtn">i</span><span class="muted" style="font-size:12px">${label}</span><span class="tippop">${fmt.esc(body)}</span></span>`;
+}
+
+// in-place term tooltip: hovering the exact stat (ctx / Δ / cache read / …) explains
+// that stat right above it — dotted underline marks the hoverable terms
+function term(labelHtml, tipText, extra = '') {
+  return `<span class="tip term ${extra}" tabindex="0"><span class="lbl">${labelHtml}</span><span class="tippop">${fmt.esc(tipText)}</span></span>`;
+}
+
+function contextInsightsPanel(ci) {
+  if (!ci || !ci.skillListing?.length) return '';
+  return `<div class="panel"><h3>${t('panel.contextInsights')}</h3>
+    <table><thead><tr><th>${t('ci.skill')}</th><th>${t('ci.listing')}</th><th>${t('ci.body')}</th></tr></thead><tbody>
+      ${ci.skillListing.map(s => `<tr><td><span class="badge skill">${fmt.esc(s.skill)}</span></td><td>≈ ${fmt.n(s.listingTokensEst)} tokens</td><td>≈ ${fmt.n(s.bodyTokensEst)} tokens</td></tr>`).join('')}
+      <tr><td><b>${t('ci.total')}</b></td><td><b>≈ ${fmt.n(ci.listingTotalTokensEst)} tokens</b></td><td></td></tr>
+    </tbody></table>
+    <div class="cards" style="margin-top:10px">
+      ${ci.meanFirstRoundContext != null ? card(fmt.n(ci.meanFirstRoundContext), t('ci.firstRound')) : ''}
+      ${ci.meanSkillBodyCostEst != null && ci.meanSkillBodyCostEst > 50 ? card('≈ ' + fmt.n(ci.meanSkillBodyCostEst), t('ci.bodyMeasured')) : ''}
+    </div>
+    <p class="muted">${t('ci.note')}</p>
+  </div>`;
+}
+
+// ---- experiment statistics panel (design §2.3/§2.4) — three-state, block-status badges, no adopt ----
+// Consumes OBS.buildExpStatsCard(e) (pure view model). Copy is zh-hans plain language; the original
+// term rides in a trailing (括号) or a dotted-underline tooltip. Governance-neutral: sequence cards
+// are ALWAYS 未验证假说 with no adopt affordance.
+function gEx(labelHtml, key) { const g = EXP_GLOSSARY[key]; return g ? term(labelHtml, g) : labelHtml; }
+function expStatsPanel(e) {
+  const stCard = buildExpStatsCard(e);   // NOT named `card` — that would shadow the card() helper
+  // resolver warnings (wrapper warnings passed through verbatim + corrupt-sidecar degrade notes)
+  const warnHtml = (stCard.warnings ?? []).map(w => `<div class="muted" style="font-size:12px;color:var(--warn)">⚠ ${fmt.esc(w)}</div>`).join('');
+  if (stCard.state === 'legacy') {
+    return `<div class="panel"><h3>覆盖率统计</h3>${warnHtml}<div class="muted">${fmt.esc(stCard.backfillHint)}</div></div>`;
+  }
+  if (stCard.state === 'error') {
+    // A3 third state: a seal-time stats failure renders as a failure, never as an empty full card
+    return `<div class="panel"><h3>覆盖率统计</h3>${warnHtml}<div style="color:var(--err)">统计计算失败：${fmt.esc(stCard.error)}</div></div>`;
+  }
+  const ss = stCard.sampleSize, bd = ss.breakdown;
+  // authority badge (A3): embedded = 封存权威; sidecar = honest non-authoritative backfill
+  const authBadge = stCard.authorityBadge ? ` <span class="badge ${stCard.authorityBadge.tone === 'ok' ? 'ok' : 'warn'}" title="${fmt.esc(stCard.authority ?? '')}">${fmt.esc(stCard.authorityBadge.word)}</span>` : '';
+  // Stage 4 provenance badge: stats.provenance 'adapter-reported' → 自报信号披露; absent/observed → no badge
+  const provBadge = stCard.provenanceBadge ? ` <span class="badge ${stCard.provenanceBadge.tone === 'ok' ? 'ok' : 'warn'}" title="stats.provenance: ${fmt.esc(stCard.provenance ?? '')}">${fmt.esc(stCard.provenanceBadge.word)}</span>` : '';
+  let h = `<div class="panel"><h3>覆盖率统计${authBadge}${provBadge} <span class="muted" style="font-size:12px">${gEx('cli 下沉', 'cliSink')}信号</span></h3>`;
+  h += warnHtml;
+  // sidecarIgnored 语义（taxonomy §3.0 窄化）：权威数字未采用 sidecar——有 supplemental 时两者并存
+  if (stCard.sidecarIgnored) h += `<div class="muted" style="font-size:12px">ⓘ ${stCard.supplementalSections
+    ? '重算 sidecar 未被权威数字采用——其新增统计节以非权威补算并列展示（见下）'
+    : '存在被忽略的重算 sidecar（CLI 诊断用）——封存实验以内嵌统计为准'}</div>`;
+  // taxonomy §3.0 supplemental：独立块 + 独立「回填（非权威）」徽章——绝不挂在权威徽章下、绝不并进权威数字
+  if (stCard.supplementalSections) {
+    const supBadge = stCard.supplementalBadge ? ` <span class="badge warn">${fmt.esc(stCard.supplementalBadge.word)}</span>` : '';
+    const supKeys = Object.keys(stCard.supplementalSections).map(k => `<code>${fmt.esc(k)}</code>`).join(' · ');
+    h += `<div style="margin:8px 0 4px"><b>补算统计节</b>${supBadge} <span class="muted" style="font-size:12px">schema v${fmt.esc(String(stCard.supplementalSchema?.from ?? '—'))} → v${fmt.esc(String(stCard.supplementalSchema?.to ?? '—'))}——封存数字不变，以下新增节为非权威补算</span></div>`;
+    h += `<div class="muted" style="font-size:12px">${supKeys}</div>`;
+  }
+  h += `<div class="cards">${card(String(ss.nCoverageValid), gEx('有效样本 n', 'nCoverageValid'))}</div>`;
+  h += `<div class="muted" style="font-size:12px;margin:4px 0 10px">${fmt.esc(ss.note)} · 拆分：有效 ${bd.valid} / 排除 ${bd.excluded} / 留出 ${bd.heldOut} / 无 session ${bd.noSession} / 未解析 ${bd.unresolved}</div>`;
+  // M1 skill coverage
+  const sc = stCard.skillCoverage;
+  if (sc) {
+    h += `<div style="margin:8px 0 4px"><b>触发覆盖</b> <span class="muted">${sc.triggered}/${sc.installed}${sc.coverageRatio == null ? '' : ' = ' + fmt.pct(sc.coverageRatio)}</span></div>`;
+    if (sc.neverTriggered.skills.length) h += `<div class="muted" style="font-size:12px">${term('从未触发', sc.neverTriggered.hint)}：${sc.neverTriggered.skills.map(x => `<span class="badge warn">${fmt.esc(x)}</span>`).join(' ')}</div>`;
+    if (sc.notExercised.skills.length) h += `<div class="muted" style="font-size:12px">${term('没题目考它', sc.notExercised.hint)}：${sc.notExercised.skills.map(x => `<span class="badge">${fmt.esc(x)}</span>`).join(' ')}</div>`;
+  }
+  // §S v2 per-skill expansion rows (B1 refs 明细 + B6 miss 清单)。upgradeHint 不再互斥于明细行：
+  // v2 embedded 有明细但缺 v3 新节（旧 schema 提示真路径）；v1 的 skillDetails 本就是 []。
+  if (stCard.upgradeHint) h += `<div class="muted" style="font-size:12px;margin:4px 0">${fmt.esc(stCard.upgradeHint)}</div>`;
+  for (const row of stCard.skillDetails ?? []) h += expSkillDetailHtml(row);
+  // M2 reference coverage + three exemption buckets (bySkill=null → reason, NEVER 读到 0/0)
+  const rc = stCard.refCoverage;
+  if (rc && rc.unknown) {
+    h += `<div style="margin:10px 0 4px"><b>参考文档读取</b></div>`;
+    h += `<div class="muted" style="font-size:12px">${rc.reason === 'external-runtime-self-managed'
+      ? '外部运行时自管 skills，无参考文档清单可核对（external-runtime-self-managed）'
+      : '无清单快照，参考文档读取不可知（no-inventory-snapshot）'}</div>`;
+  } else if (rc) {
+    // 分母文案四态: snapshot（无注记）· adapter-declared（可知分母 + 自报徽章）·
+    // none-backfill（shipped null → 清单不可知注记）· external-runtime（走上方 unknown 分支）
+    const declaredInv = rc.inventoryStatus === 'adapter-declared';
+    const invBadge = declaredInv ? ` <span class="badge warn" title="inventoryStatus: adapter-declared">清单由 adapter 自报（未经 harness 快照核验）</span>` : '';
+    h += `<div style="margin:10px 0 4px"><b>参考文档读取</b> <span class="muted">读到 ${rc.read}/${rc.shipped == null ? '—' : rc.shipped}${rc.shipped == null ? '（清单不可知，仅观测到的读取——no-inventory-snapshot）' : ''}</span>${invBadge}</div>`;
+    if (declaredInv && rc.outOfInventoryReads) h += `<div class="muted" style="font-size:12px">另有 ${rc.outOfInventoryReads} 笔清单外读取（自报）——读到的文档不在自报清单内</div>`;
+    if (rc.sharedReads) h += `<div class="muted" style="font-size:12px">其中 ${rc.sharedReads} 份为共享文档（_shared），无法归属到具体 skill（shared-hash-namespace）</div>`;
+    if (rc.unreadRefs.length) h += `<div class="muted" style="font-size:12px">未读（死重候选）：${rc.unreadRefs.map(u => `<code>${fmt.esc(u.ref)}</code>`).join(' · ')}</div>`;
+    const ex = rc.exemptions;
+    const buckets = [];
+    if (ex.artifactOnly.refs.length) buckets.push(`${term('权限拒绝', ex.artifactOnly.hint)} ${ex.artifactOnly.refs.length}`);
+    if (ex.excludedOnly.refs.length) buckets.push(`${term('仅排除运行读过', ex.excludedOnly.hint)} ${ex.excludedOnly.refs.length}`);
+    if (ex.notExercised.skills.length) buckets.push(`${term('skill 未触发', ex.notExercised.hint)} ${ex.notExercised.skills.length}`);
+    if (buckets.length) h += `<div class="muted" style="font-size:12px">判死重前已豁免：${buckets.join(' · ')}</div>`;
+  }
+  // M3-M5 probe signals (three-state) + M7 proximity
+  const cli = stCard.probes;
+  if (!cli || !cli.configured) {
+    h += `<div class="muted" style="font-size:12px;margin-top:10px">未配置外部工具探针（stats.probes = null）</div>`;
+  } else {
+    for (const tl of cli.tools) {
+      const cov = tl.coverage;
+      h += `<div style="margin:10px 0 4px"><b>${gEx('命令面覆盖', 'commandSurface')}</b> <span class="badge ${cov?.status === 'suspect' ? 'err' : cov?.status === 'unavailable' ? 'warn' : 'ok'}">${fmt.esc(tl.coverageStatus.word)}</span> <code>${fmt.esc(tl.tool)}</code></div>`;
+      if (cov && cov.status !== 'unavailable') {
+        h += `<div class="muted" style="font-size:12px">${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}${cov.unused.length ? ' · 从未用到 ' + cov.unused.join(', ') : ''}${cov.undeclaredInvoked.length ? ' · 命令面漂移 ' + cov.undeclaredInvoked.join(', ') : ''}</div>`;
+      }
+      for (const sq of tl.sequences) {
+        h += `<div class="muted" style="font-size:12px">${term('未验证假说', EXP_GLOSSARY.hypothesisSeq)}：命令连发 ${fmt.esc(sq.seq.join(' → '))}（${sq.distinctCases} 个不同题目）${sq.knownCollapse ? ' · 注记：或可用 <code>' + fmt.esc(sq.knownCollapse) + '</code>' : ''}</div>`;
+      }
+    }
+  }
+  const px = stCard.proximity;
+  if (px) {
+    h += `<div style="margin:10px 0 4px"><b>${gEx('关联强度', 'proximityStrength')}</b> <span class="muted">时序邻近，非因果 · n=${px.n}</span></div>`;
+    h += `<table><thead><tr><th>前 → 后</th><th>紧邻度</th><th>置信</th><th>lift</th><th>n</th></tr></thead><tbody>`;
+    for (const ed of px.topEdges) h += `<tr><td><code>${fmt.esc(ed.from.type + ':' + ed.from.id)}</code> → <code>${fmt.esc(ed.to.type + ':' + ed.to.id)}</code></td><td>${ed.closeness}</td><td>${ed.confidence == null ? '—' : ed.confidence}</td><td>${ed.lift == null ? '—' : ed.lift}</td><td>${ed.pairCases}</td></tr>`;
+    h += `</tbody></table>`;
+  }
+  return h + `</div>`;
+}
+
+// One per-skill <details data-persist> expansion row (design B1 refs 明细 + B6 miss 清单).
+// Reuses the existing data-persist native-folding pattern — zero new event management. Ratios are
+// always x/y side by side; a 0 denominator renders as — (never a fake percentage).
+function expSkillDetailHtml(row) {
+  const xy = (x, y) => y ? `${x}/${y}` : `${x}/—`;
+  const trigTxt = row.trigger ? xy(row.trigger.triggered, row.trigger.attempted) : '—';
+  let body = '';
+  // refs 明细 (schemaVersion 2): bytes | 读到题数 | 共同触发读取率 x/y | blocked badge
+  if (row.refsNote === 'external-runtime-self-managed') {
+    body += `<div class="muted" style="font-size:12px">外部运行时自管（external-runtime-self-managed）——参考文档清单不可知</div>`;
+  } else if (row.refsNote === 'no-inventory-snapshot') {
+    body += `<div class="muted" style="font-size:12px">无快照（no-inventory-snapshot）——仅能显示观测到的读取，此 skill 未观测到任何读取</div>`;
+  } else if (row.refsNote === 'adapter-declared') {
+    body += `<div class="muted" style="font-size:12px">清单由 adapter 自报（adapter-declared）——该 skill 不在自报清单内，无参考文档行可核对</div>`;
+  } else if (row.refs && row.refs.length) {
+    body += `<table><thead><tr><th>参考文档（ref）</th><th>字节（bytes）</th><th>读到题数（readsCases）</th><th>${term('触发时读取率（readRateCoTriggered）', '同一道题里该 skill 触发且这份参考文档被读到的题数 / 该 skill 触发过的题数（皆按不同题目计）')}</th><th></th></tr></thead><tbody>`;
+    for (const r of row.refs) {
+      body += `<tr><td><code>${fmt.esc(r.ref)}</code></td><td>${r.bytes == null ? (r.reason === 'shared-hash-namespace' ? term('—', '共享文档的运行期名字带内容哈希，封存时无法对上字节数（内部名 shared-hash-namespace）') : r.reason === 'adapter-declared' ? term('—', '清单由 adapter 自报，无 harness 快照，字节数不可知（内部名 adapter-declared）') : '—') : fmt.n(r.bytes)}</td><td>${r.readsCases}</td><td>${xy(r.readRateCoTriggered.x, r.readRateCoTriggered.y)}</td><td>${r.blocked ? '<span class="badge err">读取被权限拦截</span>' : ''}</td></tr>`;
+    }
+    body += `</tbody></table>`;
+  } else if (row.refs) {
+    body += `<div class="muted" style="font-size:12px">无参考文档（可知且为空）</div>`;
+  }
+  // B6 miss 清单: triggered=0 cases — 行动语义: 修 expected skill 触发描述 / 收窄 firedInstead skill 触发面
+  if (row.misses) {
+    body += `<div style="margin:8px 0 2px"><b>未命中题目（miss）</b> <span class="muted" style="font-size:12px">修这个 skill 的触发描述，或收窄实际抢答 skill 的触发面</span></div>`;
+    for (const m of row.misses) {
+      const fired = m.firedInstead == null
+        ? `<span class="muted">无 session 可判</span>`
+        : m.firedInstead.length
+          ? `实际触发（firedInstead）：${m.firedInstead.map(s => `<span class="badge warn">${fmt.esc(s)}</span>`).join(' ')}`
+          : `<span class="muted">未触发任何 skill（可知且为空）</span>`;
+      body += `<div class="muted" style="font-size:12px"><code>${fmt.esc(m.caseId)}</code> · ${fired}</div>`;
+    }
+  } else if (row.missNote === 'partial-trigger-only') {
+    body += `<div class="muted" style="font-size:12px;margin-top:8px">miss 均为部分触发（同题其他 rep 已命中），无整题落空</div>`;
+  }
+  if (!body) return '';   // nothing knowable to expand → no empty details row
+  return `<details data-persist="expstats-skill" style="margin:4px 0">
+    <summary style="cursor:pointer"><span class="badge skill">${fmt.esc(row.skill)}</span> <span class="muted" style="font-size:12px">触发率（triggerRate）${trigTxt}</span></summary>
+    <div style="margin:6px 0 4px 12px">${body}</div>
+  </details>`;
+}
+
+// ---- taxonomy T1 Stage 6: 运行观测 / 运行健康 cards over the v3 stats sections ------------------
+// Section source resolution (§3.0): the embedded stats blob carries a v3 section only at
+// schemaVersion ≥ 3 (authoritative); below that, the resolver's supplemental.sections
+// (non-authoritative recompute) supplies it. The CALLER decides the source here — the obs.js view
+// models just take (section, { nonAuthoritative }) and carry the honesty flag through.
+function v3Section(e, key) {
+  const stats = e.stats;
+  if (stats && !stats.error && (stats.schemaVersion ?? 1) >= 3 && key in stats)
+    return { section: stats[key], nonAuthoritative: false };
+  const sup = e.supplemental?.sections;
+  if (sup && key in sup) return { section: sup[key], nonAuthoritative: true };
+  return null; // no v3 section anywhere (legacy experiment, no supplemental) → segment absent
+}
+// supplemental-sourced segment badge — the S5 回填（非权威） style, pinned per SEGMENT (§3.0:
+// never hung under the 权威（封存时计算） badge)
+const supBadge = (on) => on ? ` <span class="badge warn">回填（非权威）</span>` : '';
+// honest null-section line (§3.0 null-not-zero): zh reason copy + canonical reason code —
+// a null section renders its reason, never a blank and never a 0
+const nullReasonLine = (v) => `<div class="muted" style="font-size:12px">— ${fmt.esc(v.reasonCopy)}${v.reason ? `（${fmt.esc(v.reason)}）` : ''}</div>`;
+
+// 运行观测 card: contextComposition (§3.1) + toolUsage (§3.2) + fileTargets (§3.4, folded into the
+// tool-usage segment). Rendered ONLY when at least one v3 section resolves (embedded or supplemental).
+function runObsPanel(e) {
+  const cc = v3Section(e, 'contextComposition');
+  const tu = v3Section(e, 'toolUsage');
+  const ft = v3Section(e, 'fileTargets');
+  if (!cc && !tu && !ft) return '';
+  const ccV = cc ? contextCompositionView(cc.section, { nonAuthoritative: cc.nonAuthoritative }) : null;
+  const tuV = tu ? toolUsageView(tu.section, { nonAuthoritative: tu.nonAuthoritative }) : null;
+  const ftV = ft ? fileTargetsView(ft.section, { nonAuthoritative: ft.nonAuthoritative }) : null;
+  let h = `<div class="panel"><h3>运行观测 <span class="muted" style="font-size:12px">context 组成 + 工具使用（contextComposition · toolUsage · fileTargets）</span></h3>`;
+  // §3.1 contextComposition — 增量归因视角（copy ban: never a cost view）
+  if (ccV) {
+    h += `<div style="margin:8px 0 4px"><b>${fmt.esc(ccV.title ?? CONTEXT_COMPOSITION_TITLE)}</b>${!ccV.null && ccV.estimate ? ' <span class="badge warn">估算（estimate）</span>' : ''}${supBadge(ccV.nonAuthoritative)}</div>`;
+    if (ccV.null) h += nullReasonLine(ccV);
+    else {
+      h += `<table><thead><tr><th>组成桶</th><th>占比（均值）</th><th>范围（min–max）</th></tr></thead><tbody>`;
+      for (const row of ccV.rows) h += `<tr><td>${fmt.esc(row.label)}</td><td>${row.share == null ? '—' : fmt.pct(row.share.mean)}</td><td class="muted">${row.share == null ? '—' : fmt.pct(row.share.min) + '–' + fmt.pct(row.share.max)}</td></tr>`;
+      h += `</tbody></table>`;
+      const cp = ccV.compaction;
+      h += `<div class="muted" style="font-size:12px;margin-top:4px">${fmt.esc(cp.label)}：${cp.runsWithCompaction > 0
+        ? `${cp.runsWithCompaction} 个 run 出现 · 绝对量均值 ≈ ${fmt.n(cp.absolute?.mean)} tokens · 相对分母均值 ${fmt.pct(cp.shareOfDenominator?.mean ?? 0)}`
+        : '未观测到压缩'}</div>`;
+      h += `<div class="muted" style="font-size:12px">n=${ccV.n}${ccV.untaggedLegacyRuns ? ` · 跳过未标记旧 run ${ccV.untaggedLegacyRuns}` : ''}${ccV.zeroFootprintRuns ? ` · 跳过零 footprint run ${ccV.zeroFootprintRuns}` : ''}${ccV.skippedRounds ? ` · 跳过零 footprint 轮 ${ccV.skippedRounds}` : ''}${ccV.peakFootprint ? ` · 峰值 footprint 均值 ${fmt.n(Math.round(ccV.peakFootprint.mean))}` : ''}${ccV.maxContribution ? ` · 最大贡献 run <code>${fmt.esc(String(ccV.maxContribution.runId ?? '—'))}</code>` : ''}</div>`;
+    }
+  }
+  // §3.2 toolUsage — byKind main/sidechain split + MCP server table + top tools
+  if (tuV) {
+    h += `<div style="margin:12px 0 4px"><b>${fmt.esc(tuV.title ?? TOOL_USAGE_TITLE)}</b>${supBadge(tuV.nonAuthoritative)}</div>`;
+    if (tuV.null) h += nullReasonLine(tuV);
+    else {
+      h += `<table><thead><tr><th>类别（kind）</th><th>主链（main）</th><th>子代理（sidechain）</th><th>合计</th></tr></thead><tbody>`;
+      for (const k of tuV.byKind) h += `<tr><td><code>${fmt.esc(k.kind)}</code></td><td>${fmt.n(k.main)}</td><td>${fmt.n(k.sidechain)}</td><td>${fmt.n(k.total)}</td></tr>`;
+      h += `</tbody></table>`;
+      h += `<div class="muted" style="font-size:12px">${fmt.esc(tuV.scopeNote)} · ${fmt.esc(tuV.kindSourceNote)}：${tuV.kindSource.declared}/${tuV.kindSource.inferred}${tuV.allowlistVersion ? ` · ${fmt.esc(tuV.allowlistNote)}：<code>${fmt.esc(tuV.allowlistVersion)}</code>` : ''}</div>`;
+      if (tuV.mcpServers.length) {
+        h += `<div style="margin:6px 0 2px"><b>MCP server 切分</b></div><table><thead><tr><th>server</th><th>调用（calls）</th><th>错误（errors）</th><th>权限拒绝（denials）</th></tr></thead><tbody>`;
+        for (const m of tuV.mcpServers) h += `<tr><td><code>${fmt.esc(m.server)}</code></td><td>${fmt.n(m.calls)}</td><td>${fmt.n(m.errors)}</td><td>${fmt.n(m.denials)}</td></tr>`;
+        h += `</tbody></table>`;
+      }
+      if (tuV.topTools.length) h += `<div class="muted" style="font-size:12px">高频工具（topTools）：${tuV.topTools.map(tl => `<code>${fmt.esc(tl.name)}</code> ${fmt.n(tl.calls)}${tl.errors ? `（错 ${tl.errors}）` : ''}${tl.denials ? `（拒 ${tl.denials}）` : ''}`).join(' · ')}</div>`;
+    }
+  }
+  // §3.4 fileTargets — folded into the tool-usage card（skill 没被读时在读什么/改了什么）
+  if (ftV) {
+    h += `<div style="margin:12px 0 4px"><b>${fmt.esc(ftV.title ?? FILE_TARGETS_TITLE)}</b>${supBadge(ftV.nonAuthoritative)}</div>`;
+    if (ftV.null) h += nullReasonLine(ftV);
+    else {
+      h += `<table><thead><tr><th></th>${ftV.reads.rows.map(r => `<th>${fmt.esc(r.label)}</th>`).join('')}<th>无路径（pathless）</th></tr></thead><tbody>`;
+      const sideRow = (label, s) => `<tr><td>${label}</td>${s.rows.map(r => `<td>${fmt.n(r.count)}</td>`).join('')}<td>${fmt.n(s.pathless)}</td></tr>`;
+      h += sideRow('读（Read）', ftV.reads);
+      h += sideRow('写（Write/Edit/NotebookEdit/MultiEdit）', ftV.writes);
+      h += `</tbody></table>`;
+      h += `<div class="muted" style="font-size:12px">${fmt.esc(ftV.pathlessNote)} · n=${ftV.n}${ftV.noCwdRuns ? ` · 跳过无 cwd run ${ftV.noCwdRuns}` : ''}</div>`;
+    }
+  }
+  return h + `</div>`;
+}
+
+// 运行健康 card: cacheHitRate / truncation / sidechainShare / selfReport / statsHealth (§3.3/§3.5)
+// — one card, five segments, each with its own null-reason line.
+function runHealthPanel(e) {
+  const keys = ['cacheHitRate', 'truncation', 'sidechainShare', 'selfReport', 'statsHealth'];
+  const srcs = keys.map((k) => [k, v3Section(e, k)]);
+  if (srcs.every(([, s]) => !s)) return '';
+  // one experiment resolves ALL five from one source — embedded v3 carries the full closed set,
+  // supplemental supplies the full set above a stale embedded — so a single card flag is exact
+  const nonAuthoritative = srcs.some(([, s]) => s?.nonAuthoritative === true);
+  const sections = Object.fromEntries(srcs.filter(([, s]) => s).map(([k, s]) => [k, s.section]));
+  // selfReport 自报 vs 估算并列：估算 = Σ(任务均值成本 × 有效 n)——与自报（result 行 Σ）口径不同，
+  // 视图模型的 caliberNote 明示两者仅并列、绝不合并；无任务成本数据 → null（不可得），不是 0
+  const estTasks = Object.values(e.tasks ?? {}).filter((tk) => tk?.efficiency?.meanCostUsd != null && tk?.n > 0);
+  const estimatedCostUsd = estTasks.length ? estTasks.reduce((a, tk) => a + tk.efficiency.meanCostUsd * tk.n, 0) : null;
+  const v = runHealthView(sections, { nonAuthoritative, estimatedCostUsd });
+  if (v.empty) return '';
+  let h = `<div class="panel"><h3>运行健康 <span class="muted" style="font-size:12px">cache · 截断 · 子代理 · 自报成本 · 异常（cacheHitRate · truncation · sidechainShare · selfReport · statsHealth）</span></h3>`;
+  const seg = (heading, sv, body) => {
+    if (!sv) return '';
+    return `<div style="margin:10px 0 4px"><b>${heading}</b>${supBadge(sv.nonAuthoritative)}</div>` + (sv.null ? nullReasonLine(sv) : body(sv));
+  };
+  h += seg('cache 命中率（cacheHitRate）', v.cache, (s) => {
+    let b = `<div class="muted" style="font-size:12px">逐轮 cacheR/footprint 的 run 均值：${fmt.pct(s.mean)}（${fmt.pct(s.min)}–${fmt.pct(s.max)}）· n=${s.n}${s.skippedRounds ? ` · 跳过无用量/零 footprint 轮 ${s.skippedRounds}` : ''}</div>`;
+    if (s.byRepeat.length > 1) {
+      b += `<table><thead><tr><th>repeat 序</th><th>cache 命中率均值</th><th>n</th></tr></thead><tbody>`;
+      for (const r of s.byRepeat) b += `<tr><td>${r.repeat}</td><td>${fmt.pct(r.meanCacheR)}</td><td>${r.n}</td></tr>`;
+      b += `</tbody></table><div class="muted" style="font-size:12px">${fmt.esc(s.byRepeatNote)}</div>`;
+    }
+    return b;
+  });
+  h += seg('输出截断（truncation）', v.truncation, (s) => {
+    const fr = s.finalRoundTruncated;
+    let b = `<div class="muted" style="font-size:12px">截断轮占比 ${fmt.pct(s.truncatedRoundShare)}（分母 ${s.rounds} 轮）· 末轮截断 run ${fr ? `${fr.runs}/${fr.n}${fr.share == null ? '（0/0 不可知）' : ''}` : '—'}${s.unknownStopReason ? ` · 无 stop reason 轮 ${s.unknownStopReason}——${fmt.esc(s.unknownNote)}` : ''}${s.unknownFinalRuns ? ` · 末轮不可判 run ${s.unknownFinalRuns}` : ''}</div>`;
+    if (s.byReason.length) b += `<div class="muted" style="font-size:12px">stopReason 分布：${s.byReason.map(r => `<code>${fmt.esc(r.reason)}</code> ${r.count}`).join(' · ')}</div>`;
+    return b;
+  });
+  h += seg('子代理份额（sidechainShare）', v.sidechain, (s) => {
+    const sh = (t) => t == null || t.share == null ? '—（0/0 不可知）' : fmt.pct(t.share);
+    return `<div class="muted" style="font-size:12px">tokens ${sh(s.tokens)} · 工具调用 ${sh(s.toolCalls)} · 开销量级（equivTokens）${sh(s.equivTokens)} · 含子代理 run ${s.runsWithSidechain}/${s.n}<br>${fmt.esc(s.equivNote)}</div>`;
+  });
+  h += seg('自报成本（selfReport）', v.selfReport, (s) =>
+    `<div class="muted" style="font-size:12px">自报 Σ ${s.totalCostUsd == null ? '—' : fmt.usd(s.totalCostUsd)}（${s.runsWithSelfReport} run · ${s.invocations} 次 result 行）vs 估算 ${s.estimatedCostUsd == null ? '—（不可得）' : '≈ ' + fmt.usd(s.estimatedCostUsd)}${s.numTurns != null ? ` · 自报轮数 Σ ${fmt.n(s.numTurns)}` : ''}${s.durationMs != null ? ` · 自报耗时 Σ ${fmt.ms(s.durationMs)}` : ''}${s.isError ? ' · <span class="badge err">含自报错误（is_error）</span>' : ''}<br>${fmt.esc(s.caliberNote)}</div>`);
+  h += seg('观测管线健康（statsHealth）', v.statsHealth, (s) => {
+    const tr = s.timeoutRate;
+    let b = `<div class="muted" style="font-size:12px">排除分布（exclusionBreakdown）：${s.exclusions.length ? s.exclusions.map(x => `<code>${fmt.esc(x.signature)}</code> ${x.count}`).join(' · ') : '无（可知且为空）'}</div>`;
+    b += `<div class="muted" style="font-size:12px">超时率（timeoutRate）：${tr ? (tr.rate == null ? '—（无可知分母）' : `${fmt.pct(tr.rate)}（${tr.timedOut}/${tr.n}）`) + (tr.legacyUnknown ? `，另有 legacy 不可知 ${tr.legacyUnknown}——${fmt.esc(s.timeoutLegacyNote)}` : '') : '—'}</div>`;
+    if (s.abortedAtStep.length) b += `<div class="muted" style="font-size:12px">中止步分布（abortedAtStep）：${s.abortedAtStep.map(x => `步 ${fmt.esc(x.step)} × ${x.count}`).join(' · ')}</div>`;
+    b += `<div class="muted" style="font-size:12px">重试后成功（retriedThenSucceeded）：${s.retriedThenSucceeded} · parse 警告 Σ ${s.parseWarningsTotal}</div>`;
+    if (s.verifierFails.length) b += `<div class="muted" style="font-size:12px">最常红的 verifier：${s.verifierFails.map(x => `<code>${fmt.esc(x.verifier)}</code> × ${x.fails}`).join(' · ')}</div>`;
+    return b;
+  });
+  return h + `</div>`;
+}
+
+// ---- metadata panel + annotations editor (interaction spec: docs/ixd/feature-experiment-metadata.md) ----
+let ann = null; // editor state for the experiment currently on screen
+
+function metadataPanel(e) {
+  if (!e.environment && !e.meta && !e.captured) return ''; // experiments recorded before metadata existed
+  ann = { expId: e.id, data: { ...(e.annotations ?? {}) }, editing: null, confirmKey: null,
+          error: null, busy: false, flashKey: null, corrupt: Boolean(e.annotationsWarning) };
+  const env = e.environment ?? {};
+  const sum = [
+    env.aiideVersion ? `aiide ${env.aiideVersion}` : null,
+    env.nodeVersion ? `node ${env.nodeVersion}` : null,
+    env.os?.platform ?? null,
+    env.runtimeVersion ? `runtime ${env.runtimeVersion}` : null,
+  ].filter(Boolean).join(' · ');
+  const hasCustom = Object.keys(e.meta ?? {}).length || Object.keys(e.captured ?? {}).length;
+  return `<div class="panel"><h3>${t('panel.metadata')}</h3>
+    <div class="mgroup"><details data-persist="md-env">
+      <summary class="muted" style="cursor:pointer">${t('md.env')} <span style="color:var(--fg)">${fmt.esc(sum)}</span></summary>
+      <div style="margin-top:8px">${envRows(env).map(([k, v]) => kvRow(k, v)).join('')}</div>
+    </details></div>
+    ${hasCustom ? `<div class="mgroup"><h4>${t('md.metaCap')}</h4>
+      ${Object.entries(e.meta ?? {}).map(([k, m]) =>
+        kvRow(k, `${fmt.esc(String(m.value))} <span class="badge" title="${t('md.sourceTip')}">${fmt.esc(t('md.source.' + m.source))}</span>`)).join('')}
+      ${Object.entries(e.captured ?? {}).map(([k, c]) =>
+        kvRow(k, `${c.value == null ? `<span style="color:var(--err)">✗ ${fmt.esc(c.error ?? '')}</span>` : fmt.esc(String(c.value))} <span class="badge" title="${t('md.sourceTip')}">${t('md.source.captured')}</span>`)).join('')}
+    </div>` : ''}
+    <div class="mgroup"><h4>${t('md.ann')} <span class="muted" style="text-transform:none">— ${t('md.annNote')}</span></h4>
+      ${ann.corrupt ? `<div style="color:var(--warn);font-size:12px;margin-bottom:6px">${t('md.corrupt')}</div>` : ''}
+      <div id="ann-body"></div>
+      <span id="ann-live" class="muted" role="status" aria-live="polite" style="font-size:12px"></span>
+    </div>
+  </div>`;
+}
+
+function kvRow(k, vHtml) {
+  return `<div class="kv-row"><span class="muted" style="overflow-wrap:anywhere">${fmt.esc(k)}</span><span style="overflow-wrap:anywhere">${vHtml}</span></div>`;
+}
+
+// ordered by analytical value: what changed between runs matters more than what never changes
+function envRows(env) {
+  const r = [];
+  r.push([t('md.runtimeVer'), env.runtimeVersion ? fmt.esc(env.runtimeVersion) : `<span class="muted">${t('na')}</span>`]);
+  if (env.model) r.push([t('md.modelRow'), fmt.esc(env.model.requested ?? '') +
+    (env.model.observed?.length ? ` <span class="muted">→ ${fmt.esc(env.model.observed.join(', '))}</span>` : '')]);
+  if (env.suite) {
+    const p = env.suite.params ?? {};
+    const name = env.suite.path ? String(env.suite.path).split(/[\\/]/).at(-1) : null;
+    r.push([t('md.suiteRow'), `${name ? fmt.esc(name) + ' · ' : ''}${env.suite.sha256 ? 'sha256:' + fmt.esc(env.suite.sha256.slice(0, 12)) + '…' : t('na')} <span class="muted">repeats ${p.repeats} · maxTurns ${p.maxTurns} · timeout ${Math.round((p.timeoutMs ?? 0) / 1000)}s</span>`]);
+  }
+  if (env.skills?.length) r.push(['skills', env.skills.map(s =>
+    `<span class="badge skill">${fmt.esc(s.name)}${s.hash ? '@' + fmt.esc(s.hash.slice(0, 6)) : ''}</span>`).join('')]);
+  if (env.aiideVersion) r.push(['aiide', fmt.esc(env.aiideVersion)]);
+  if (env.nodeVersion) r.push(['node', fmt.esc(env.nodeVersion)]);
+  if (env.os) r.push(['os', fmt.esc(`${env.os.platform ?? ''} ${env.os.release ?? ''} ${env.os.arch ?? ''}`.trim())]);
+  // "default" pricing is the norm and carries zero information — only an override affects cost numbers
+  if (env.pricing?.source === 'override') r.push([t('md.pricing'), fmt.esc(env.pricing.path ?? 'override')]);
+  return r;
+}
+
+function jsq(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function live(msg) { const el = document.getElementById('ann-live'); if (el) el.textContent = msg; }
+
+function annRender(focusSel) {
+  const el = document.getElementById('ann-body');
+  if (!el || !ann) return;
+  const rows = Object.entries(ann.data).map(([k, v]) => {
+    if (ann.editing?.mode === 'edit' && ann.editing.origKey === k) return annEditorRow(k, v);
+    const confirming = ann.confirmKey === k;
+    return `<div class="kv-row ann-row${ann.flashKey === k ? ' ann-new' : ''}">
+      <span class="muted" style="overflow-wrap:anywhere">${fmt.esc(k)}</span>
+      <span style="overflow-wrap:anywhere">${fmt.esc(v)}
+        <span class="ann-ops">
+          <button class="btn" aria-label="${t('md.edit')} ${fmt.esc(k)}" ${ann.editing || ann.busy ? 'disabled' : ''} onclick="annEdit('${jsq(k)}')">✎</button>
+          <button class="btn" style="${confirming ? 'color:var(--err);border-color:var(--err)' : ''}" aria-label="${t('md.delete')} ${fmt.esc(k)}"
+            ${ann.editing || ann.busy ? 'disabled' : ''} onclick="annDelete('${jsq(k)}')"
+            onkeydown="if(event.key==='Escape')annConfirmCancel()" onblur="annConfirmCancel()">${confirming ? t('md.confirm') : '✕'}</button>
+        </span>
+      </span>
+    </div>`;
+  }).join('');
+  const editor = ann.editing?.mode === 'add' ? annEditorRow('', '') : '';
+  const addBtn = ann.editing ? '' : `<button class="btn" style="margin:6px 0 0 0" onclick="annAdd()">${t('md.addNote')}</button>`;
+  el.innerHTML = rows + editor + addBtn;
+  ann.flashKey = null;
+  if (focusSel) el.querySelector(focusSel)?.focus();
+}
+
+function annEditorRow(k, v) {
+  // draft survives re-renders (busy / save-error) so a failed save never loses user input (R8.1)
+  const d = ann.editing?.draft;
+  const kVal = d ? d.key : k, vVal = d ? d.val : v;
+  return `<div class="kv-row ann-row" style="align-items:center">
+    <input id="ann-key" class="md-in${ann.error?.field === 'key' ? ' bad' : ''}" placeholder="${t('md.keyPh')}" aria-label="${t('md.keyPh')}"
+      value="${fmt.esc(kVal)}" ${ann.error ? 'aria-describedby="ann-err"' : ''} ${ann.busy ? 'readonly' : ''} onkeydown="annKeydown(event,'key')">
+    <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="ann-val" class="md-in" style="flex:1;min-width:160px" placeholder="${t('md.valPh')}" aria-label="${t('md.valPh')}"
+        value="${fmt.esc(vVal)}" ${ann.busy ? 'readonly' : ''} onkeydown="annKeydown(event,'val')">
+      <button class="btn" onclick="annSave()" ${ann.busy ? 'disabled' : ''}>${ann.busy ? '…' : t('md.save')}</button>
+      <button class="btn" onclick="annCancel()" ${ann.busy ? 'disabled' : ''}>${t('md.cancel')}</button>
+    </span>
+    ${ann.error ? `<span></span><span id="ann-err" class="md-err">${fmt.esc(ann.error.msg)}</span>` : ''}
+  </div>`;
+}
+
+function annAdd() { ann.editing = { mode: 'add' }; ann.error = null; annRender('#ann-key'); }
+function annEdit(k) { ann.editing = { mode: 'edit', origKey: k }; ann.error = null; annRender('#ann-key'); }
+function annCancel() { ann.editing = null; ann.error = null; ann.busy = false; annRender(); }
+function annKeydown(ev, field) {
+  if (ev.key === 'Escape') { ev.preventDefault(); annCancel(); return; }
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    if (field === 'key') document.getElementById('ann-val')?.focus();
+    else annSave();
+  }
+}
+
+let annTimer = null;
+function annConfirmCancel() {
+  if (ann?.confirmKey) { ann.confirmKey = null; clearTimeout(annTimer); annRender(); }
+}
+
+async function annDelete(k) {
+  if (ann.confirmKey !== k) { // two-step delete: first click arms, 3s silent window, second click commits
+    ann.confirmKey = k;
+    clearTimeout(annTimer);
+    annTimer = setTimeout(() => { if (ann) { ann.confirmKey = null; annRender(); } }, 3000);
+    // mutate the button in place instead of re-rendering: a re-render removes the focused
+    // button, Chrome fires its blur mid-render, and annConfirmCancel silently disarms while
+    // the stale "confirm?" html still lands on screen — the classic lost-second-click bug
+    const btn = document.querySelector(`#ann-body button[aria-label="${t('md.delete')} ${k}"]`);
+    if (btn) { btn.textContent = t('md.confirm'); btn.style.color = 'var(--err)'; btn.style.borderColor = 'var(--err)'; }
+    return;
+  }
+  clearTimeout(annTimer);
+  ann.confirmKey = null;
+  const next = { ...ann.data };
+  delete next[k];
+  await annPut(next, t('md.deleted'));
+}
+
+async function annPut(next, okMsg) {
+  ann.busy = true; annRender();
+  try {
+    const r = await fetch(`/api/experiments/${encodeURIComponent(ann.expId)}/annotations`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(next),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`);
+    ann.data = await r.json();
+    ann.busy = false;
+    live(okMsg);
+    annRender();
+    return true;
+  } catch (err) {
+    ann.busy = false;
+    live(t('md.saveFailed') + err.message);
+    if (ann.editing) ann.error = { field: null, msg: t('md.saveFailed') + err.message };
+    annRender();
+    return false;
+  }
+}
+
+async function annSave() {
+  const key = (document.getElementById('ann-key')?.value ?? '').trim();
+  const val = document.getElementById('ann-val')?.value ?? '';
+  ann.editing.draft = { key, val }; // keep input across re-renders
+  const dup = key in ann.data && !(ann.editing.mode === 'edit' && ann.editing.origKey === key);
+  if (!key) ann.error = { field: 'key', msg: t('md.errKeyRequired') };
+  else if (!/^[A-Za-z0-9_.-]{1,64}$/.test(key)) ann.error = { field: 'key', msg: t('md.errKeyInvalid') };
+  else if (dup) ann.error = { field: 'key', msg: t('md.errKeyExists') };
+  else ann.error = null;
+  if (ann.error) { annRender('#ann-key'); return; }
+  const next = { ...ann.data };
+  if (ann.editing.mode === 'edit') delete next[ann.editing.origKey];
+  next[key] = val;
+  ann.flashKey = key; // editor stays open while busy; cleared on success below
+  if (await annPut(next, t('md.saved'))) { ann.editing = null; annRender(); }
+}
+
+// ---- compare view: metadata diff (the "incomparable dimensions" evidence table) ----
+let cmpAll = false;
+function flattenMeta(e) {
+  const out = {};
+  const env = e.environment ?? {};
+  if (env.aiideVersion != null) out['aiide'] = String(env.aiideVersion);
+  if (env.nodeVersion) out['node'] = env.nodeVersion;
+  if (env.os) out['os'] = `${env.os.platform ?? ''} ${env.os.release ?? ''} ${env.os.arch ?? ''}`.trim();
+  if (env.runtimeVersion != null) out[t('md.runtimeVer')] = String(env.runtimeVersion);
+  if (env.model) {
+    out['model (requested)'] = String(env.model.requested ?? '');
+    if (env.model.observed?.length) out['model (observed)'] = env.model.observed.join(', ');
+  }
+  if (env.suite?.sha256) out['suite sha256'] = env.suite.sha256.slice(0, 12);
+  if (env.suite?.params) {
+    const p = env.suite.params;
+    out['params'] = `repeats ${p.repeats} · maxTurns ${p.maxTurns} · timeout ${Math.round((p.timeoutMs ?? 0) / 1000)}s`;
+  }
+  if (env.skills?.length) out['skills'] = env.skills.map(s => `${s.name}@${(s.hash ?? '').slice(0, 6)}`).join(' ');
+  if (env.pricing?.source === 'override') out[t('md.pricing')] = env.pricing.path ?? 'override'; // default = no information
+  for (const [k, m] of Object.entries(e.meta ?? {})) out[`meta.${k}`] = String(m.value);
+  for (const [k, c] of Object.entries(e.captured ?? {})) out[`captured.${k}`] = c.value == null ? `✗ ${c.error ?? ''}` : String(c.value);
+  return out;
+}
+
+function metadataDiffPanel(a, b) {
+  const fa = flattenMeta(a), fb = flattenMeta(b);
+  const keys = [...new Set([...Object.keys(fa), ...Object.keys(fb)])];
+  if (!keys.length) return '';
+  const diff = keys.filter(k => (fa[k] ?? '—') !== (fb[k] ?? '—'));
+  const shown = cmpAll ? keys : diff;
+  const row = (k, va, vb, hl) => {
+    const cell = v => `<td class="${hl ? 'diff-hl' : 'muted'}">${fmt.esc(v ?? '—')}</td>`;
+    return `<tr${hl ? ' class="diff-row"' : ''}><td class="muted">${fmt.esc(k)}</td>${cell(va)}${cell(vb)}</tr>`;
+  };
+  // annotations are narrative, not dimensions — never counted as diff, listed only under "show all"
+  const annRowsHtml = cmpAll
+    ? [...new Set([...Object.keys(a.annotations ?? {}), ...Object.keys(b.annotations ?? {})])]
+        .map(k => row(`note.${k}`, (a.annotations ?? {})[k], (b.annotations ?? {})[k], false)).join('')
+    : '';
+  return `<div class="panel"><h3>${t('panel.diff')} — ${diff.length} ${t('diff.count')}
+      <button class="btn" onclick="cmpAll=!cmpAll;render()">${cmpAll ? t('diff.onlyDiff') : `${t('diff.showAll')} (${keys.length})`}</button></h3>
+    ${shown.length || annRowsHtml
+      ? `<table><thead><tr><th>${t('th.dimension')}</th><th class="cmp-a">A</th><th class="cmp-b">B</th></tr></thead>
+         <tbody>${shown.map(k => row(k, fa[k], fb[k], (fa[k] ?? '—') !== (fb[k] ?? '—'))).join('')}${annRowsHtml}</tbody></table>`
+      : `<div style="color:var(--ok)">${t('diff.none')}</div>`}
+  </div>`;
+}
+
+// S17 activation × outcome row. Three null guardrails: (a) null activationOutcome → not rendered;
+// (b) an absent partition (all triggered / all not) shows "never <side>", never a 0/0 comparison;
+// (c) small n → "correlational, low sample". Read-only diagnostic.
+function activationOutcomeRow(ao, skills) {
+  if (!ao) return ''; // guardrail (a)
+  const lab = skills && skills.length ? ' ' + fmt.esc(skills.join(', ')) : '';
+  const seg = (o, key, color) => o // guardrail (b): missing side → "never <side>", not 0/0
+    ? `<span style="color:${color}">${t('ao.' + key)}${lab} → ${o.meanC.toFixed(2)} (n=${o.n})</span>`
+    : `<span class="muted">${t('ao.never')} ${t('ao.' + key)}</span>`;
+  const low = ao.lowSample ? ` <span class="badge warn">${t('ao.lowSample')}</span>` : ''; // guardrail (c)
+  return `<div class="diag muted">${t('ao.title')}: ${seg(ao.triggered, 'triggered', 'var(--ok)')} · ${seg(ao.notTriggered, 'notTriggered', 'var(--dim)')}${low}</div>`;
+}
+
+// Pick the repeat whose answer + checks best represent this task: a passing repeat that captured an
+// answer, else any repeat with an answer, else the first (excluded ones only if nothing else). The
+// inline Q/A shows THIS repeat; the drilldown below still lists every repeat.
+function representativeRepeat(tk) {
+  const live = tk.repeats.filter(r => !r.excluded);
+  const pool = live.length ? live : tk.repeats;
+  return pool.find(r => r.resultPreview && r.C) ?? pool.find(r => r.resultPreview) ?? pool[0] ?? null;
+}
+
+// Collapse a repeat's verifierResults into one badge per verifier TYPE (e.g. 5 judge assertions →
+// "judge ×5 ✓" green only if all 5 passed, else "3/5" red). Full per-assertion detail rides in the
+// hover title and stays exhaustive in the drilldown table.
+function verifierSummaryBadges(results) {
+  if (!results || !results.length) return '';
+  const groups = new Map();
+  for (const v of results) {
+    const g = groups.get(v.type) ?? { total: 0, pass: 0, details: [] };
+    g.total++; if (v.pass) g.pass++;
+    if (v.detail) g.details.push(`${v.pass ? '✓' : '✗'} ${v.detail}`);
+    groups.set(v.type, g);
+  }
+  return [...groups.entries()].map(([type, g]) => {
+    const allPass = g.pass === g.total;
+    const label = g.total > 1 ? `${type} ×${g.total}` : type;
+    return `<span class="badge ${allPass ? 'ok' : 'err'}" title="${fmt.esc(g.details.join('\n'))}">${label} ${allPass ? '✓' : `${g.pass}/${g.total}`}</span>`;
+  }).join('');
+}
+
+function taskPanel(tid, tk, skills = []) {
+  const excluded = tk.excludedRepeats ?? 0;
+  const rep = representativeRepeat(tk);
+  const verdict = tk.successRate === 1 ? `<span class="badge ok">C=1 ✓</span>`
+    : tk.successRate === 0 ? `<span class="badge err">C=0</span>`
+    : `<span class="badge warn">C ${fmt.pct(tk.successRate)}</span>`;
+  const answerHtml = rep && rep.resultPreview
+    ? `<code class="res" style="margin:2px 0 0">${fmt.esc(rep.resultPreview)}</code>`
+    : `<span class="muted">${t('task.noAnswer')}</span>`;
+  const repNote = rep && rep.resultPreview && tk.repeats.length > 1
+    ? ` <span class="muted">${t('task.repOf')} r${tk.repeats.indexOf(rep) + 1} / ${tk.repeats.length}</span>` : '';
+  const checks = rep ? verifierSummaryBadges(rep.verifierResults) : '';
+  return `<div class="panel">
+    <h3>${t('task.title')} ${fmt.esc(tid)} ${verdict} ${tk.lowSample ? `<span class="badge warn">${t('badge.lowSample')}</span>` : ''}${tk.degraded ? ` <span class="badge warn" title="${excluded} excluded">${t('badge.degraded')}</span>` : ''}</h3>
+    <div class="qa">
+      <span class="tag">Q</span><div class="qtext">${fmt.esc(tk.prompt)}</div>
+      <span class="tag">A</span><div>${answerHtml}${repNote}</div>
+    </div>
+    ${checks ? `<div class="vbadges"><span class="muted" style="font-size:11px">${t('task.checks')}</span> ${checks}</div>` : ''}
+    <div class="cards">
+      ${card(scoreHtml(tk.composite), t('th.composite'))}
+      ${card(fmt.pct(tk.successRate), t('card.successRate'))}
+      ${card(ciBar(tk.wilsonCi, tk.successRate), t('card.wilson'))}
+      ${card(tk.activationRate == null ? t('na') : fmt.pct(tk.activationRate), t('card.activation'))}
+      ${card(`${tk.n - tk.failedRepeats}/${tk.n}${excluded ? ` <span class="muted">(${excluded} ${t('badge.excluded')})</span>` : ''}`, t('card.repeatsOk'))}
+    </div>
+    ${activationOutcomeRow(tk.activationOutcome, skills)}
+    <div class="diag muted">${t('task.efficiency')} ${fmt.ms(tk.efficiency.meanDurationMs)} · ${fmt.usd(tk.efficiency.meanCostUsd)} · ${fmt.n(tk.efficiency.meanOutTokens)} out-tokens</div>
+    <details data-persist="drilldown"><summary>${t('task.drilldown')} ${tk.repeats.length} ${t('task.repeatsWord')}</summary>
+      <table><thead><tr><th>#</th><th>${t('th.run')}</th><th>C</th><th>P</th><th>H</th><th>${t('th.activated')}</th><th>${t('th.rounds')}</th><th>${t('th.verifiers')}</th><th>${t('th.wall')}</th><th>${t('th.error')}</th></tr></thead><tbody>
+      ${tk.repeats.map((r, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${r.runId ? `<a href="#run/${encodeURIComponent(r.runId)}">${fmt.esc(String(r.runId).slice(0, 8))}…</a>` : '—'}</td>
+        <td>${r.excluded ? `<span class="badge warn">${t('badge.excluded')}</span>` : r.C ? '<span class="badge ok">1</span>' : '<span class="badge err">0</span>'}</td>
+        <td>${r.P == null ? t('na') : r.P.toFixed(2)}</td><td>${r.H == null ? t('na') : r.H.toFixed(2)}</td>
+        <td>${r.activated == null ? '—' : r.activated ? '✓' : '<span style="color:var(--err)">✗</span>'}</td>
+        <td>${r.rounds ?? '—'}</td>
+        <td>${(r.verifierResults ?? []).map(v => `<span class="badge ${v.pass ? 'ok' : 'err'}" title="${fmt.esc(v.detail)}">${v.type}${v.pass ? '✓' : '✗'}</span>`).join('')}</td>
+        <td class="muted">${fmt.ms(r.efficiency?.wallMs ?? 0)}</td>
+        <td class="muted">${r.excluded ? fmt.esc(r.excludedSignature ?? t('badge.excluded')) : fmt.esc(r.error ?? r.warning ?? '')}</td>
+      </tr>
+      ${r.resultPreview ? `<tr><td></td><td colspan="9"><code class="res">${fmt.esc(r.resultPreview)}</code></td></tr>` : ''}`).join('')}
+      </tbody></table>
+    </details>
+  </div>`;
+}
+
+// ---- U8 view: upgrade comparisons list (verdict-first, read-only) ----
+// Governance-neutral: shows the verdict as evidence, never an adopt affordance. Data source is the
+// read-only GET /api/upgrades (U7 report.json summaries under <data-dir>/upgrades/).
+async function viewUpgrades() {
+  const list = await api('upgrades');
+  if (!list.length) { $app.innerHTML = '<div class="empty">' + t('upg.empty') + '</div>'; return; }
+  $app.innerHTML = `
+    <h2 style="margin:6px 0">${t('upg.title')}
+      <a class="btn" href="#upgrade-trend" style="text-decoration:none">${t('upg.trendTab')} →</a></h2>
+    <table><thead><tr><th>${t('th.created')}</th><th>${t('th.recommend')}</th><th>${t('th.intent')}</th><th>${t('th.arms')}</th><th>${statTip(t('th.pairs'), t('tip.upg.pairs'))}</th><th>${t('upg.cohort')}</th></tr></thead>
+    <tbody>${list.map(u => {
+      return `<tr class="click" onclick="location.hash='#upgrade/${encodeURIComponent(u.compareId)}'">
+        <td class="muted">${fmt.t(u.createdAt)}</td>
+        <td>${recommendBadge(u.verdict, u.established)}</td>
+        <td>${u.intent ? `<span class="muted">${intentBadge(u.intent)}</span>` : t('na')}${u.mixedBundle ? ` <span class="badge">${enumLabel('mixed-bundle')}</span>` : ''}</td>
+        <td><span class="cmp-a">${enumLabel(u.arms.new)}</span>${u.arms.newVersion ? ` <span class="muted">${fmt.esc(u.arms.newVersion)}</span>` : ''} <span class="muted">vs</span> <span class="cmp-b">${enumLabel(u.arms.old)}</span>${u.arms.oldVersion ? ` <span class="muted">${fmt.esc(u.arms.oldVersion)}</span>` : ''}</td>
+        <td>${u.pairs == null ? t('na') : u.pairs}</td>
+        <td class="muted">${fmt.esc(u.cohort ?? '—')}</td>
+      </tr>`;
+    }).join('')}</tbody></table>
+    <p class="muted">${t('upg.evidenceNote')}</p>`;
+}
+
+// native-title stat tooltip: a dotted-underline term whose plain-language meaning shows in the
+// browser's own title bubble on hover (zero-dep — no popover JS). Used for n paired / MIN_PAIRS /
+// exclusion / reference-only so the dashboard reads the same as the U7 report end.
+function statTip(labelHtml, tip) { return `<span class="statterm" title="${fmt.esc(tip)}">${labelHtml}</span>`; }
+
+// intent → plain-language label (省成本 / 修质量 / 中性重构); the raw enum stays in a native-title
+// tooltip for AI cross-reference. en keeps the enum itself (no redundant tooltip).
+function intentBadge(intent) {
+  if (!intent) return t('na');
+  const label = t('intent.' + intent);
+  // unmapped (t → key) or a lang whose label IS the raw enum (en) → plain; a real gloss (zh) → tooltip
+  return label === 'intent.' + intent || label === intent ? fmt.esc(intent) : statTip(label, intent);
+}
+
+// arm/bundle enum value → plain zh label (混搭包 / 旧版整包 / 新版整包) with the raw enum in a
+// native-title tooltip for AI cross-reference. A value not in the map (a custom arm label) passes
+// through unchanged; en shows the raw value (no redundant tooltip).
+const UPG_ENUM_KEYS = { 'mixed-bundle': 'upg.enum.mixed-bundle', 'old-full': 'upg.enum.old-full', 'new-full': 'upg.enum.new-full' };
+function enumLabel(value) {
+  if (value == null) return '—';
+  const key = UPG_ENUM_KEYS[value];
+  if (!key) return fmt.esc(value);
+  const label = t(key);
+  // unmapped (t → key) or a lang whose label IS the raw enum (en) → plain; a real gloss (zh) → tooltip
+  return label === key || label === value ? fmt.esc(value) : statTip(label, value);
+}
+
+// engine reason strings (report.json `reasons`) are raw English evidence — swap the bare MIN_PAIRS
+// variable name for the plain label at display time (original kept in the tooltip). \bMIN_PAIRS\b
+// leaves MIN_PAIRS_SKILL untouched (the trailing "_" is a word char, so no boundary there).
+function reasonHtml(r) {
+  return fmt.esc(r).replace(/\bMIN_PAIRS\b/g, statTip(t('upg.minPairsLabel'), 'MIN_PAIRS'));
+}
+
+// verdict → boolean-recommendation badge (user-requested framing). Keeps the four-state glyph
+// (✓ recommend:true · ✗ recommend:false · ~ inconclusive · ∅ insufficient-data) but the LABEL reads
+// as a recommendation: an intent verdict → "升级推荐: true/false"; the two undecidable verdicts →
+// "无法判定(…)", NEVER "false" (they are not a negative signal). intent is listed separately.
+function recommendBadge(verdict, established) {
+  if (!verdict) return t('na');
+  const g = upgradeVerdictGlyph(verdict, established);
+  const rec = upgradeRecommendation(verdict, established);
+  const label = rec.decidable ? `${t('upg.recommend')}: ${rec.recommended}` : t('upg.undecidable.' + verdict);
+  return `<span class="badge ${g.tone === 'dim' ? '' : g.tone}" title="${t('verdict.gloss.' + verdict)}">${g.glyph} ${label}</span>`;
+}
+
+// ---- U8 view: single upgrade comparison — verdict banner + 3-axis mini-delta cards + per-skill
+// red list + PM-B2 next steps + version quad. All read-only; the only action is "open full report".
+async function viewUpgrade(compareId) {
+  const report = await api('upgrades/' + encodeURIComponent(compareId));
+  const v = buildUpgradeView(report);
+  if (!v) { $app.innerHTML = '<div class="empty">' + t('load.failed') + ' ' + fmt.esc(compareId) + '</div>'; return; }
+  const cfg = v.footer?.config ?? {};
+  const quad = v.footer?.versionQuad ?? null;
+  $app.innerHTML = `
+    <p><a href="#upgrades">← ${t('upg.title')}</a></p>
+    <div class="panel" style="border-color:var(--${v.tone === 'dim' ? 'border' : v.tone})">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:26px;color:var(--${v.tone === 'dim' ? 'dim' : v.tone})">${v.glyph}</span>
+        <h2 style="margin:0">${recommendBadge(v.verdict, v.established)}</h2>
+        ${v.intent ? `<span class="badge">${t('th.intent')}: ${intentBadge(v.intent)}</span>` : ''}
+        ${v.header?.mixedBundle ? `<span class="badge">${enumLabel('mixed-bundle')}</span>` : ''}
+      </div>
+      <p class="muted" style="margin:8px 0 0">${t('verdict.gloss.' + v.verdict)}</p>
+      ${v.reasons?.length ? `<ul class="muted" style="margin:6px 0 0">${v.reasons.map(r => `<li>${reasonHtml(r)}</li>`).join('')}</ul>` : ''}
+      <div class="muted" style="margin-top:8px">${fmt.t(v.createdAt)} · <span class="cmp-a">${enumLabel(v.arms?.new?.label)}</span> vs <span class="cmp-b">${enumLabel(v.arms?.old?.label)}</span>${v.header?.baselineArm ? ` · ${t('upg.baseline')}: ${enumLabel(v.header.baselineArm.label)}` : ''} · ${statTip(t('th.pairs') + ' ' + (v.pairs ?? t('na')), t('tip.upg.pairs'))} · ${statTip(t('upg.exclusionPct') + ' ' + (v.exclusionPct == null ? t('na') : v.exclusionPct + '%'), t('tip.upg.exclusion'))}</div>
+    </div>
+    ${upgradeNextStepsPanel(v.nextSteps)}
+    <div class="grid2">
+      <div class="panel"><h3>${t('upg.axesQuality')}</h3>${v.qualityAxes.length ? v.qualityAxes.map(ax => deltaRow(t('upg.axis.' + ax.key), ax.deltaPp, ax.ci, ax.n, 'pp', { sigUp: ax.significantUp, heuristic: ax.heuristic })).join('') : `<span class="muted">${t('chart.noData')}</span>`}
+        ${v.flowIncomplete ? `<div class="score-row"><span class="lbl muted">${statTip(t('upg.flowInc'), 'flow-incomplete')}</span><span class="val ${v.flowIncomplete.regressed ? '' : 'muted'}" style="width:auto;${v.flowIncomplete.regressed ? 'color:var(--err)' : ''}">${fmt.pct(v.flowIncomplete.rateNew ?? 0)} vs ${fmt.pct(v.flowIncomplete.rateOld ?? 0)}${v.flowIncomplete.regressed ? ' ⚠' : ''}</span></div>` : ''}
+      </div>
+      <div class="panel"><h3>${t('upg.axesCost')}</h3>${v.costAxes.length ? v.costAxes.map(ax => deltaRow(t('upg.axis.' + ax.key), ax.delta, ax.ci, ax.n, '', { sigDown: ax.significantDown, sigUp: ax.significantUp })).join('') : `<span class="muted">${t('chart.noData')}</span>`}</div>
+    </div>
+    <div class="panel"><h3>${t('upg.perSkill')}</h3>
+      ${v.perSkillRedlist.length ? `<table><thead><tr><th>${t('th.skill')}</th><th>${t('upg.redlist')}</th><th>delta</th><th>CI</th></tr></thead><tbody>
+        ${v.perSkillRedlist.map(s => `<tr>
+          <td><span class="badge skill">${fmt.esc(s.skill)}</span></td>
+          <td><span class="badge ${s.flag === 'regressed' ? 'err' : 'warn'}"${s.flag === 'low-confidence' ? ` title="${fmt.esc(t('tip.upg.referenceOnly'))}"` : ''}>${t('upg.flag.' + s.flag)}</span>${s.significantBadge ? ` <span class="muted">${fmt.esc(s.significantBadge)}</span>` : ''}</td>
+          <td>${s.mean == null ? t('na') : s.mean}</td>
+          <td class="muted">${s.ci && s.ci.lo != null ? `[${s.ci.lo}, ${s.ci.hi}]` : t('na')}</td>
+        </tr>`).join('')}</tbody></table>` : `<div style="color:var(--ok)">${t('upg.cleanSkills')}</div>`}
+      <p class="muted" style="margin:8px 0 0">${t('upg.perSkillPlain')}</p>
+    </div>
+    <div class="panel"><h3>${t('upg.versionQuad')}</h3>
+      ${quad ? `<div>${Object.entries(quad).map(([k, val]) => `<span class="badge">${fmt.esc(k)}: ${fmt.esc(typeof val === 'object' ? JSON.stringify(val) : String(val))}</span>`).join(' ')}</div>` : ''}
+      <div class="muted" style="margin-top:8px">δ=${cfg.nonInferiorityDeltaPp ?? '?'}pp · ${statTip(t('upg.minPairsLabel') + '=' + (cfg.MIN_PAIRS ?? '?'), t('tip.upg.minPairs'))} · ${statTip(t('upg.minPairsSkillLabel') + '=' + (cfg.MIN_PAIRS_SKILL ?? '?'), 'MIN_PAIRS_SKILL · ' + t('tip.upg.referenceOnly'))} · CI=${cfg.ciLevel ?? '?'} · FDR=${fmt.esc(cfg.fdr ?? '?')}</div>
+    </div>
+    ${probeBlockPanel(v.probes)}
+    ${v.reportHtmlPath ? `<p><a href="/api/upgrades/${encodeURIComponent(v.compareId)}/report.html" target="_blank" rel="noopener" title="${t('upg.openReportTip')}">⬇ ${t('upg.openReport')} ↗</a></p>` : ''}`;
+}
+
+// upgrade view: external-tool probe-signal block (design §2.4). null → nothing. tripwired → an
+// inconclusive banner (absolutes still shown). Sequence cards are 未验证假说, no adopt button.
+function probeBlockPanel(cli) {
+  if (!cli) return '';   // no probe configured for this upgrade
+  let h = `<div class="panel"><h3>外部工具探针 <span class="muted" style="font-size:12px">${gEx('cli 下沉', 'cliSink')}信号</span></h3>`;
+  if (cli.tripwired) h += `<div class="muted" style="border-left:3px solid var(--warn);padding-left:10px;margin-bottom:8px">本节被剔除的题占比过高，两版对比<b>无法判定</b>；各版本绝对值仍照常展示。</div>`;
+  for (const w of cli.warnings) h += `<div class="muted" style="border-left:3px solid var(--err);padding-left:10px;margin-bottom:6px;font-size:12px">⚠ ${term('被剔除运行里检测到外部命令', '这些运行已排除，但命中提醒你留意“新版狂打命令又中断”这类被排除规则悄悄洗掉的情况')}：${fmt.esc(w.arm)} 的 <code>${fmt.esc(w.caseId)}</code> 跑了 <code>${fmt.esc(w.tool)}</code> ${fmt.esc((w.cmds || []).join(' / '))}</div>`;
+  for (const nc of cli.notComparable) h += `<div class="muted" style="font-size:12px">${fmt.esc(nc.tool)}：两版命令面不同，无法直接对比（${fmt.esc(nc.reason)}）</div>`;
+  for (const arm of cli.arms) {
+    for (const tl of arm.tools) {
+      const cov = tl.coverage;
+      const covTxt = !cov ? '无数据' : cov.status === 'unavailable' ? `用到 ${cov.invoked.length} 条（未宣告命令面）` : `${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}`;
+      h += `<div style="margin:8px 0 2px"><span class="badge">${fmt.esc(arm.arm)}</span> <code>${fmt.esc(tl.tool)}</code> <span class="badge ${tl.coverageStatus.tone === 'ok' ? 'ok' : tl.coverageStatus.tone === 'warn' ? 'warn' : ''}">${fmt.esc(tl.coverageStatus.word)}</span> <span class="muted">${gEx('命令面覆盖', 'commandSurface')} ${covTxt}</span></div>`;
+    }
+  }
+  for (const sq of cli.sequences) h += `<div class="muted" style="font-size:12px">${term('未验证假说', EXP_GLOSSARY.hypothesisSeq)}（${fmt.esc(sq.arm)}）：命令连发 ${fmt.esc(sq.seq.join(' → '))}（${sq.distinctCases} 个不同题目）${sq.knownCollapse ? ' · 注记：或可用 <code>' + fmt.esc(sq.knownCollapse) + '</code>' : ''}</div>`;
+  const anyProx = cli.arms.find(a => a.proximityTop.length);
+  if (anyProx) {
+    h += `<div style="margin:10px 0 4px"><b>${gEx('关联强度', 'proximityStrength')}</b> <span class="muted">时序邻近，非因果</span></div>`;
+    h += `<table><thead><tr><th>版本</th><th>前 → 后</th><th>紧邻度</th><th>置信</th><th>lift</th><th>n</th></tr></thead><tbody>`;
+    for (const arm of cli.arms) for (const ed of arm.proximityTop) h += `<tr><td><span class="badge">${fmt.esc(arm.arm)}</span></td><td><code>${fmt.esc(ed.from.type + ':' + ed.from.id)}</code> → <code>${fmt.esc(ed.to.type + ':' + ed.to.id)}</code></td><td>${ed.closeness}</td><td>${ed.confidence == null ? '—' : ed.confidence}</td><td>${ed.lift == null ? '—' : ed.lift}</td><td>${ed.pairCases}</td></tr>`;
+    h += `</tbody></table>`;
+  }
+  return h + `</div>`;
+}
+
+// PM-B2 next-step guidance panel for insufficient-data / inconclusive — mirrors the HTML report so
+// the two never drift. NEVER shows an "adoptable" affordance (R8.EB1).
+function upgradeNextStepsPanel(ns) {
+  if (!ns) return '';
+  if (ns.kind === 'insufficient-data') {
+    return `<div class="panel" style="border-color:var(--warn)"><h3>${t('upg.nextSteps')}</h3>
+      <div>${statTip(t('upg.needPairs').replace('{n}', ns.needPairs).replace('{m}', ns.minPairs), t('tip.upg.minPairs'))}</div></div>`;
+  }
+  return `<div class="panel" style="border-color:var(--warn)"><h3>${t('upg.nextSteps')} — ${t('upg.excludedCases')}${ns.exclusionPct != null ? ` (${ns.exclusionPct}%)` : ''}</h3>
+    ${ns.excludedCases.length ? `<table><thead><tr><th>case-id</th><th>reason</th><th>action</th></tr></thead><tbody>
+      ${ns.excludedCases.map(c => `<tr><td>${fmt.esc(c.caseId)}</td><td><span class="badge warn">${t('upg.reason.' + c.reason) ?? fmt.esc(c.reason)}</span></td><td class="muted">${t('upg.action.' + c.action) ?? fmt.esc(c.action)}</td></tr>`).join('')}
+    </tbody></table>` : `<span class="muted">${t('na')}</span>`}</div>`;
+}
+
+// mini delta row: label · value · a hand-written SVG CI bar centred on 0 (zero-dep, no ECharts).
+// A CI whose lower bound clears the non-inferiority margin reads as ok; one straddling 0 is dim.
+function deltaRow(label, delta, ci, n, unit, flags = {}) {
+  const badges = [
+    flags.sigDown ? `<span class="badge ok">${t('upg.sigDown')}</span>` : '',
+    flags.sigUp ? `<span class="badge err">${t('upg.sigUp')}</span>` : '',
+    flags.heuristic ? `<span class="badge warn">${t('upg.heuristic')}</span>` : '',
+  ].join('');
+  // a zero-change axis reads as "— 持平" — no +/- direction, no arrow (user-requested)
+  const val = delta == null ? t('na') : delta === 0 ? t('upg.flat') : (delta > 0 ? '+' : '') + delta + unit;
+  return `<div class="score-row"><span class="lbl muted">${label}${n != null ? ' ' + statTip(`<span style="opacity:.7">n=${n}</span>`, t('tip.upg.pairs')) : ''}</span>
+    ${miniDelta(delta, ci)}
+    <span class="val" style="width:auto">${val}${ci && ci.lo != null ? ` <span class="muted" style="font-size:11px">[${ci.lo}, ${ci.hi}]</span>` : ''} ${badges}</span></div>`;
+}
+function miniDelta(delta, ci) {
+  const W = 110, H = 16;
+  if (delta == null && (!ci || ci.lo == null)) return `<svg width="${W}" height="${H}"></svg>`;
+  const lo = ci?.lo ?? delta, hi = ci?.hi ?? delta;
+  const span = Math.max(Math.abs(lo), Math.abs(hi), Math.abs(delta ?? 0), 1e-6);
+  const sx = x => W / 2 + (x / span) * (W / 2 - 4); // 0 at centre, symmetric domain
+  const bar = ci && ci.lo != null
+    ? `<rect x="${Math.min(sx(lo), sx(hi))}" y="5" width="${Math.max(1, Math.abs(sx(hi) - sx(lo)))}" height="${H - 10}" fill="var(--accent)" opacity="0.3"/>` : '';
+  const dcol = delta == null ? 'var(--dim)' : delta < 0 ? 'var(--ok)' : delta > 0 ? 'var(--warn)' : 'var(--dim)';
+  return `<svg width="${W}" height="${H}" style="vertical-align:middle;flex:none">
+    <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="var(--border)"/>${bar}
+    ${delta == null ? '' : `<circle cx="${sx(delta)}" cy="${H/2}" r="3.5" fill="${dcol}"/>`}</svg>`;
+}
+
+// ---- U8 view: upgrade trend (case-id paired-delta lines; cohort/lineage broken, zero ECharts) ----
+async function viewUpgradeTrend() {
+  const { cohorts } = await api('upgrades?trend=1');
+  const hasAny = cohorts.some(c => c.segments.some(s => s.series.length));
+  $app.innerHTML = `
+    <p><a href="#upgrades">← ${t('upg.title')}</a></p>
+    <h2 style="margin:6px 0">${t('upg.trendTitle')}</h2>
+    ${!hasAny ? `<div class="empty">${t('upg.trendEmpty')}</div>` : cohorts.map(c => `
+      <div class="panel"><h3>${t('upg.cohort')}: ${fmt.esc(c.cohort)}</h3>
+        ${c.segments.map(seg => seg.series.length ? `
+          <div class="muted" style="margin:6px 0 2px">${t('upg.lineage')}: ${fmt.esc(seg.lineage)} · ${seg.reports.length} ${t('upg.listTab')}</div>
+          ${trendChart(seg)}` : '').join('')}
+      </div>`).join('')}
+    <p class="muted">${t('upg.trendNote')}</p>`;
+}
+
+// per-lineage-segment trend: x = successive comparisons, y = each case-id's paired delta. Lines live
+// ONLY inside a segment — the caller renders one chart per segment so a superseded genealogy is a
+// visual break, never a bridged line (R8.EB4). Hand-written SVG, zero dependencies.
+function trendChart(seg) {
+  const pts = seg.reports;
+  const n = pts.length;
+  const W = 620, H = 190, padL = 30, padR = 10, padT = 14, padB = 40;
+  const allDeltas = seg.series.flatMap(s => s.points.map(p => p.delta).filter(d => d != null));
+  const maxAbs = Math.max(1, ...allDeltas.map(Math.abs));
+  const x = i => n === 1 ? (W - padR + padL) / 2 : padL + i / (n - 1) * (W - padL - padR);
+  const y = d => padT + (1 - (d / maxAbs + 1) / 2) * (H - padT - padB); // 0 centred; +maxAbs top, −maxAbs bottom
+  const palette = ['var(--accent)', 'var(--purple)', 'var(--cyan)', 'var(--warn)', 'var(--ok)', 'var(--err)'];
+  let svg = '';
+  // zero line + ±maxAbs guides
+  svg += `<line x1="${padL}" y1="${y(0)}" x2="${W - padR}" y2="${y(0)}" stroke="var(--border)"/>`;
+  svg += `<text x="2" y="${y(0) + 3}" fill="var(--dim)" font-size="9">0</text>`;
+  seg.series.forEach((s, si) => {
+    const color = palette[si % palette.length];
+    const seq = s.points.map((p, i) => ({ i, d: p.delta })).filter(o => o.d != null);
+    if (seq.length > 1) svg += `<polyline points="${seq.map(o => `${x(o.i)},${y(o.d)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2" opacity="0.85"/>`;
+    seq.forEach(o => { svg += `<circle cx="${x(o.i)}" cy="${y(o.d)}" r="3" fill="${color}"><title>${fmt.esc(s.caseId)} @ ${fmt.esc(pts[o.i]?.compareId ?? '')}: ${o.d}</title></circle>`; });
+  });
+  // x-axis: verdict glyph per comparison
+  pts.forEach((p, i) => {
+    const g = upgradeVerdictGlyph(p.verdict, p.established);
+    svg += `<text x="${x(i)}" y="${H - padB + 16}" fill="var(--dim)" font-size="10" text-anchor="middle">${g.glyph}</text>`;
+    svg += `<text x="${x(i)}" y="${H - padB + 28}" fill="var(--dim)" font-size="8" text-anchor="middle">${fmt.esc(String(p.createdAt ?? '').slice(5, 10))}</text>`;
+  });
+  const legend = seg.series.map((s, si) => `<span class="dot" style="background:${palette[si % palette.length]}"></span><span class="muted">${fmt.esc(s.caseId)}</span>`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">${svg}</svg><div class="legend" style="margin-top:4px">${legend}</div>`;
+}
+
+// ---- chart helpers (inline SVG, zero deps) ----
+function card(v, k) { return `<div class="card"><div class="v">${v}</div><div class="k">${k}</div></div>`; }
+
+// S16: deterministic loop banner — normally silent, fires only on high-confidence structural
+// repetition; the evidence (count · tool · round range) is spelled out, never a semantic guess.
+function loopBanner(findings) {
+  if (!findings || !findings.length) return '';
+  const desc = f => `${f.count}× ${t(f.type === 'identical-input' ? 'loop.identical' : 'loop.repeatedErr')} <span class="badge">${fmt.esc(f.tool)}</span> <span class="muted">(${t('chart.round')} ${f.fromSeq}–${f.toSeq})</span>`;
+  return `<div class="panel" style="border-color:var(--warn);margin:12px 0">
+    <span class="badge warn">⚠ ${t('loop.suspected')}</span>
+    <span style="margin-left:6px">${findings.map(desc).join(' · ')}</span></div>`;
+}
+
+// S16: four-bucket _attr stacked over turns. NEW chart (not sparkline/barChart, which assume
+// non-negative): positive buckets stack up from a baseline; a NEGATIVE residual (compaction /
+// cache eviction) is drawn BELOW the baseline as a shrink marker, never as positive height.
+function stackedAttrChart(series) {
+  if (!series.length) return '<span class="muted">' + t('chart.noData') + '</span>';
+  const W = 520, H = 150, padT = 16, padB = 22, plotH = H - padT - padB;
+  const maxPos = Math.max(1, ...series.map(s => s.prevOut + s.toolRes + s.injected + Math.max(0, s.residual)));
+  const maxNeg = Math.min(0, ...series.map(s => Math.min(0, s.residual))); // <= 0
+  const range = (maxPos - maxNeg) || 1;
+  const scale = plotH / range;
+  const y0 = padT + maxPos * scale;             // baseline y (positive above, negative below)
+  const step = (W - 20) / series.length;
+  const bw = Math.min(46, step - 4);
+  const segs = [['prevOut', 'var(--accent)'], ['toolRes', 'var(--cyan)'], ['injected', 'var(--purple)']];
+  const bars = series.map((s, i) => {
+    const x = 10 + i * step;
+    let yTop = y0, rects = '';
+    for (const [key, color] of segs) {
+      const h = s[key] * scale;
+      if (h > 0.4) { yTop -= h; rects += `<rect x="${x}" y="${yTop}" width="${bw}" height="${h}" fill="${color}"><title>#${s.seq} ${key}: ${fmt.n(s[key])}</title></rect>`; }
+    }
+    if (s.residual > 0) { const h = s.residual * scale; yTop -= h; rects += `<rect x="${x}" y="${yTop}" width="${bw}" height="${h}" fill="var(--dim)" opacity="0.55"><title>#${s.seq} unattributed: +${fmt.n(s.residual)}</title></rect>`; }
+    else if (s.residual < 0) { const h = -s.residual * scale; rects += `<rect x="${x}" y="${y0}" width="${bw}" height="${h}" fill="var(--ok)" opacity="0.5"><title>#${s.seq} ${t('attr.compaction')}: ${fmt.n(s.residual)}${s.compactionKind ? ' — ' + t('tip.compact.' + s.compactionKind) : ''}</title></rect>`; }
+    rects += `<text x="${x + bw / 2}" y="${H - 8}" fill="var(--dim)" font-size="10" text-anchor="middle">${s.seq}</text>`;
+    return rects;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">
+    <line x1="10" y1="${y0}" x2="${W - 10}" y2="${y0}" stroke="var(--border)"/>${bars}</svg>`;
+}
+function scoreColor(x) { return x >= 0.8 ? 'var(--ok)' : x >= 0.5 ? 'var(--warn)' : 'var(--err)'; }
+// null-safe score cell: Wave 1 made composite/dimensions nullable (all-excluded / floor breach).
+// A null score renders as a dim n/a, never a fake 0 and never a throw on .toFixed.
+function scoreHtml(x, dp = 3) { return x == null ? `<span class="muted">${t('na')}</span>` : `<b style="color:${scoreColor(x)}">${x.toFixed(dp)}</b>`; }
+function scoreBar(label, v, color) {
+  if (v == null) return `<div class="score-row"><span class="lbl muted">${label}</span>
+    <div class="bar-bg" style="flex:1"></div><span class="val muted">${t('na')}</span></div>`;
+  return `<div class="score-row"><span class="lbl muted">${label}</span>
+    <div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:${v * 100}%;background:${color}"></div></div>
+    <span class="val">${v.toFixed(3)}</span></div>`;
+}
+function ciBar(ci, p) {
+  const W = 90, H = 14;
+  return `<svg width="${W}" height="${H}" style="vertical-align:middle">
+    <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--border)"/>
+    <rect x="${ci.lo * W}" y="4" width="${Math.max(1, (ci.hi - ci.lo) * W)}" height="${H - 8}" fill="var(--accent)" opacity="0.35"/>
+    <circle cx="${p * W}" cy="${H/2}" r="3.5" fill="var(--accent)"/>
+  </svg><div class="muted" style="font-size:11px">${ci.lo.toFixed(2)}–${ci.hi.toFixed(2)}</div>`;
+}
+function sparkline(vals, limit) {
+  if (!vals.length) return '<span class="muted">' + t('chart.noData') + '</span>';
+  const W = 520, H = 120, max = Math.max(...vals, 1);
+  const pts = vals.map((v, i) => `${vals.length === 1 ? W/2 : i / (vals.length - 1) * (W - 20) + 10},${H - 15 - (v / max) * (H - 35)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">
+    <polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="2"/>
+    ${vals.map((v, i) => `<circle cx="${vals.length === 1 ? W/2 : i / (vals.length - 1) * (W - 20) + 10}" cy="${H - 15 - (v / max) * (H - 35)}" r="3" fill="var(--cyan)"><title>${t('chart.round')} ${i + 1}: ${v.toLocaleString()}</title></circle>`).join('')}
+    <text x="10" y="12" fill="var(--dim)" font-size="11">${t('chart.peak')} ${max.toLocaleString()} / ${t('chart.limit')} ${limit.toLocaleString()} (${(max / limit * 100).toFixed(1)}%)</text>
+  </svg>`;
+}
+function barChart(vals) {
+  if (!vals.length) return '<span class="muted">' + t('chart.noData') + '</span>';
+  const W = 520, H = 120, max = Math.max(...vals, 1), bw = Math.min(40, (W - 20) / vals.length - 4);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">
+    ${vals.map((v, i) => { const h = (v / max) * (H - 35); return `<rect x="${10 + i * ((W - 20) / vals.length)}" y="${H - 15 - h}" width="${bw}" height="${Math.max(1, h)}" rx="2" fill="var(--accent)"><title>${t('chart.round')} ${i + 1}: ${v.toLocaleString()}</title></rect>`; }).join('')}
+    <text x="10" y="12" fill="var(--dim)" font-size="11">${t('chart.maxOut')}: ${max.toLocaleString()}</text>
+  </svg>`;
+}
+</script>
+</body>
+</html>

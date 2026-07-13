@@ -1,0 +1,70 @@
+{
+  "name": "okx-demo-testset-smoke",
+  "model": "DeepSeek-V4-Pro",
+  "repeats": 1,
+  "timeoutMs": 300000,
+  "runtime": {
+    "type": "command",
+    "name": "okx-onchainos-demo",
+    "cmd": "node",
+    "args": [
+      "{{SUITE_DIR}}/../adapters/okx-demo-sse-driver.mjs",
+      "{{PROMPT}}"
+    ],
+    "env": {
+      "AIIDE_SESSION_TOKEN": "aiide-bench",
+      "OKX_DEMO_SEED_HOME": "C:/Users/wky/.onchainos",
+      "OKX_DEMO_HOMES_DIR": "D:/programme/ai/okx-onchainos-demo/.onchainos-homes"
+    },
+    "service": {
+      "cmd": "bun",
+      "args": [
+        "server/server.ts"
+      ],
+      "cwd": "D:/programme/ai/okx-onchainos-demo",
+      "env": {
+        "AI_MODEL": "{{MODEL}}",
+        "ENABLE_SSE": "1",
+        "PORT": "3901",
+        "AI_MAX_TURNS": "15"
+      },
+      "readyUrl": "http://127.0.0.1:3901/api/chats",
+      "readyTimeoutMs": 45000,
+      "requiredEnv": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "requiredCli": [
+        "bun",
+        "onchainos"
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "id": "W02",
+      "prompt": "how much money do I have in my wallet right now?",
+      "category": "account",
+      "verifiers": [
+        {
+          "type": "regex",
+          "pattern": "\\$\\s?\\d"
+        }
+      ]
+    },
+    {
+      "id": "M01",
+      "prompt": "以太坊上的 USDT 现在什么价? 帮我看下",
+      "category": "market",
+      "verifiers": [
+        {
+          "type": "regex",
+          "pattern": "\\$\\s?\\d"
+        },
+        {
+          "type": "regex",
+          "pattern": "USDT"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "result": "ETH 当前价格为 $1,999.42。",
+  "observability": ["runtime_info"],
+  "runtime_info": {
+    "name": "my-agent-loop",
+    "version": "0.9.3",
+    "systemPrompt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 5211,
+      "tokensEst": 1600
+    },
+    "tools": ["market_price", "wallet_status"],
+    "defaults": { "temperature": 0 }
+  }
+}

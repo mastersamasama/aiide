@@ -102,6 +102,8 @@
   code.res { display: block; white-space: pre-wrap; word-break: break-word; background: var(--panel2); border-radius: 6px; padding: 10px; margin: 6px 0; font-size: 12px; max-height: 340px; overflow: auto; }
   /* experiment IA: focal "task runs" section label + collapsible deep-diagnostics section */
   .section-label { margin: 28px 0 2px; font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+  /* contextual entry links on the experiments page (skills rollup / upgrade verdicts — ex-tabs) */
+  .subnav { display: flex; gap: 18px; margin: 2px 0 14px; font-size: 13px; }
   .diag-section { margin: 26px 0 6px; border-top: 1px solid var(--border); padding-top: 10px; }
   .diag-section > summary { list-style: none; color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; display: inline-flex; align-items: center; gap: 8px; }
   .diag-section > summary::-webkit-details-marker { display: none; }
@@ -128,8 +130,6 @@
   <nav id="nav">
     <a href="#runs" data-view="runs" data-i18n="nav.runs"></a>
     <a href="#experiments" data-view="experiments" data-i18n="nav.experiments"></a>
-    <a href="#skills" data-view="skills" data-i18n="nav.skills"></a>
-    <a href="#upgrades" data-view="upgrades" data-i18n="nav.upgrades"></a>
   </nav>
   <input id="q" class="searchbox" type="search" autocomplete="off" oninput="applySearch()" onkeydown="searchKey(event)">
   <div class="lang" id="toolbar" style="margin-left:auto"></div>
@@ -151,6 +151,7 @@ const I18N = {
   en: {
     'subtitle': '· local-first agent observability',
     'nav.runs': 'Runs', 'nav.experiments': 'Experiments', 'nav.skills': 'Skills', 'nav.upgrades': 'Upgrades',
+    'subnav.skills': 'skills rollup', 'subnav.upgrades': 'upgrade verdicts',
     // U8 upgrade views (verdict-first, read-only, governance-neutral)
     'upg.empty': 'No upgrade comparisons yet.<br><br>aiide upgrade run … then: aiide upgrade compare + report<br>reports land under &lt;data-dir&gt;/upgrades/&lt;compare-id&gt;/',
     'upg.title': 'upgrade comparisons', 'upg.trendTab': 'trend', 'upg.listTab': 'comparisons',
@@ -325,6 +326,7 @@ const I18N = {
   'zh-hans': {
     'subtitle': '· 本地优先的 agent 可观测',
     'nav.runs': '运行记录', 'nav.experiments': '实验', 'nav.skills': 'Skills', 'nav.upgrades': '升级判定',
+    'subnav.skills': 'Skills 汇总', 'subnav.upgrades': '升级判定',
     // U8 升级检视（verdict 优先、只读、治理中立）
     'upg.empty': '暂无升级对比。<br><br>aiide upgrade run … 然后：aiide upgrade compare + report<br>报告落于 &lt;data-dir&gt;/upgrades/&lt;compare-id&gt;/',
     'upg.title': '升级对比', 'upg.trendTab': '趋势', 'upg.listTab': '对比列表',
@@ -613,7 +615,11 @@ async function render() {
   const [view, ...parts] = hash.slice(1).split('/');
   const id = parts[0];
   document.querySelectorAll('#nav a').forEach(a =>
-    a.classList.toggle('active', a.dataset.view === view || (['run', 'search'].includes(view) && a.dataset.view === 'runs') || (['experiment', 'compare'].includes(view) && a.dataset.view === 'experiments') || (view === 'skill' && a.dataset.view === 'skills') || (['upgrade', 'upgrade-trend'].includes(view) && a.dataset.view === 'upgrades')));
+    // skills/upgrades are no longer top-level tabs — their sub-views (skill/skills/upgrade/upgrades/
+    // upgrade-trend) now highlight Experiments, their contextual parent. routing is untouched.
+    a.classList.toggle('active', a.dataset.view === view
+      || (['run', 'search'].includes(view) && a.dataset.view === 'runs')
+      || (['experiment', 'compare', 'skill', 'skills', 'upgrade', 'upgrades', 'upgrade-trend'].includes(view) && a.dataset.view === 'experiments')));
   try {
     if (view === 'runs') await viewRuns();
     else if (view === 'run') await viewRun(decodeURIComponent(id));
@@ -748,6 +754,7 @@ async function viewSkills() {
   const skills = await api('skills');
   if (!skills.length) { $app.innerHTML = '<div class="empty">' + t('skills.empty') + '</div>'; return; }
   $app.innerHTML = `
+    <p><a href="#experiments">${t('back.experiments')}</a></p>
     <h2 style="margin:6px 0">${t('skills.title')}</h2>
     <table><thead><tr><th>${t('th.skill')}</th><th>${t('th.versions')}</th><th>${t('th.activationRate')}</th><th>${t('th.tokenTax')}</th><th>${t('th.usedIn')}</th><th>${t('th.composite')}</th></tr></thead>
     <tbody>${skills.map(s => `
@@ -1014,7 +1021,14 @@ async function viewExperiments() {
   const exps = await api('experiments');
   if (!exps.length) { $app.innerHTML = '<div class="empty">' + t('exp.empty') + '</div>'; return; }
   const picked = sessionStorage.getItem('aiide-cmp');
+  // Skills/Upgrades are no longer top-level tabs — their entry points live here (their parent).
+  // 升级判定 shows only when upgrade reports exist (auto); skill rollup is always reachable.
+  const upgrades = await api('upgrades').catch(() => []);
   $app.innerHTML = `
+    <div class="subnav">
+      <a href="#skills">${t('subnav.skills')} →</a>
+      ${upgrades.length ? `<a href="#upgrades">${t('subnav.upgrades')} →</a>` : ''}
+    </div>
     <table><thead><tr><th>${t('th.created')}</th><th>${t('th.experiment')}</th><th>${t('th.runtime')}</th><th>${t('th.model')}</th><th>${t('th.tasks')}</th><th>${t('th.repeats')}</th><th>${t('th.composite')}</th><th>${t('th.isolatedSkills')}</th><th></th></tr></thead>
     <tbody>${exps.map(e => `
       <tr class="click" onclick="location.hash='#experiment/${encodeURIComponent(e.id)}'">
@@ -1865,6 +1879,7 @@ async function viewUpgrades() {
   const list = await api('upgrades');
   if (!list.length) { $app.innerHTML = '<div class="empty">' + t('upg.empty') + '</div>'; return; }
   $app.innerHTML = `
+    <p><a href="#experiments">${t('back.experiments')}</a></p>
     <h2 style="margin:6px 0">${t('upg.title')}
       <a class="btn" href="#upgrade-trend" style="text-decoration:none">${t('upg.trendTab')} →</a></h2>
     <table><thead><tr><th>${t('th.created')}</th><th>${t('th.recommend')}</th><th>${t('th.intent')}</th><th>${t('th.arms')}</th><th>${statTip(t('th.pairs'), t('tip.upg.pairs'))}</th><th>${t('upg.cohort')}</th></tr></thead>

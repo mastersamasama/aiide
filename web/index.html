@@ -115,6 +115,10 @@
   .qa .tag { font-size: 11px; color: var(--dim); font-weight: 600; }
   .qa .qtext { font-size: 14px; line-height: 1.55; color: var(--fg); }
   .vbadges { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; align-items: center; }
+  /* reference-relationship charts (native ECharts): co-trigger graph / co-read heatmap / sankey */
+  .rel-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+  @media (max-width: 900px) { .rel-charts { grid-template-columns: 1fr; } }
+  .rel-chart { height: 300px; width: 100%; }
   .searchbox { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; width: 200px; }
   .searchbox:focus-visible { border-color: var(--accent); outline: none; }
   mark.hl { background: rgba(210,153,34,.4); color: var(--fg); border-radius: 2px; padding: 0 1px; }
@@ -152,6 +156,11 @@ const I18N = {
     'subtitle': '· local-first agent observability',
     'nav.runs': 'Runs', 'nav.experiments': 'Experiments', 'nav.skills': 'Skills', 'nav.upgrades': 'Upgrades',
     'subnav.skills': 'skills rollup', 'subnav.upgrades': 'upgrade verdicts',
+    'rel.title': 'reference relationship', 'rel.note': 'temporal co-occurrence — not causal',
+    'rel.graph': 'co-trigger graph (which skills fire together)', 'rel.heat': 'co-read heatmap (reference merge candidates)',
+    'rel.sankey': 'intent → skill → reference', 'rel.coTrigger': 'co-trigger', 'rel.coRead': 'co-read rate',
+    'rel.echartsFail': 'charts unavailable (ECharts failed to load)', 'rel.noGraph': 'no co-trigger data',
+    'rel.noHeat': 'no co-read merge candidates', 'rel.noSankey': 'no intent→skill→ref data',
     // U8 upgrade views (verdict-first, read-only, governance-neutral)
     'upg.empty': 'No upgrade comparisons yet.<br><br>aiide upgrade run … then: aiide upgrade compare + report<br>reports land under &lt;data-dir&gt;/upgrades/&lt;compare-id&gt;/',
     'upg.title': 'upgrade comparisons', 'upg.trendTab': 'trend', 'upg.listTab': 'comparisons',
@@ -327,6 +336,11 @@ const I18N = {
     'subtitle': '· 本地优先的 agent 可观测',
     'nav.runs': '运行记录', 'nav.experiments': '实验', 'nav.skills': 'Skills', 'nav.upgrades': '升级判定',
     'subnav.skills': 'Skills 汇总', 'subnav.upgrades': '升级判定',
+    'rel.title': '相依关系（reference relationship）', 'rel.note': '时序共现，非因果',
+    'rel.graph': '共触发图（哪些 skill 一起触发）', 'rel.heat': '共读热力图（参考文档合并候选）',
+    'rel.sankey': 'intent → skill → 参考文档', 'rel.coTrigger': '共触发', 'rel.coRead': '共读率',
+    'rel.echartsFail': '图表不可用（ECharts 载入失败）', 'rel.noGraph': '无共触发数据',
+    'rel.noHeat': '无共读合并候选', 'rel.noSankey': '无 intent→skill→ref 数据',
     // U8 升级检视（verdict 优先、只读、治理中立）
     'upg.empty': '暂无升级对比。<br><br>aiide upgrade run … 然后：aiide upgrade compare + report<br>报告落于 &lt;data-dir&gt;/upgrades/&lt;compare-id&gt;/',
     'upg.title': '升级对比', 'upg.trendTab': '趋势', 'upg.listTab': '对比列表',
@@ -610,10 +624,12 @@ async function api(path) {
 // ---- routing ----
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', () => { applyChrome(); render(); initLiveEvents(); });
+window.addEventListener('resize', () => _charts.forEach(c => { try { c.resize(); } catch { /* disposed */ } }));
 async function render() {
   const hash = location.hash || '#runs';
   const [view, ...parts] = hash.slice(1).split('/');
   const id = parts[0];
+  disposeCharts(); // tear down any ECharts instances before a view replaces $app.innerHTML (no leak)
   document.querySelectorAll('#nav a').forEach(a =>
     // skills/upgrades are no longer top-level tabs — their sub-views (skill/skills/upgrade/upgrades/
     // upgrade-trend) now highlight Experiments, their contextual parent. routing is untouched.
@@ -1942,16 +1958,100 @@ function recommendBadge(verdict, established) {
   return `<span class="badge ${g.tone === 'dim' ? '' : g.tone}" title="${t('verdict.gloss.' + verdict)}">${g.glyph} ${label}</span>`;
 }
 
+// ---- native ECharts for the reference-relationship charts (co-trigger graph / co-read heatmap /
+// intent→skill→ref sankey). The dashboard is otherwise ECharts-free (hand-SVG); echarts loads LAZILY
+// only when a report/experiment actually shows these charts, so runs/experiments stay +0 deps. Chart
+// data shape == report.json/stats `depgraph.{graph,heatmap,sankey}`; the setOption logic is ported
+// verbatim from src/report.js report.html (initGraph/initHeat/initSankey), retargeted to dashboard vars.
+let _echartsLoading = null;
+function ensureEcharts() {
+  if (typeof echarts !== 'undefined') return Promise.resolve(true);
+  if (_echartsLoading) return _echartsLoading;
+  _echartsLoading = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/echarts-5.6.0.min.js';
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false); // honest degrade: charts show a fallback line, page still works
+    document.head.appendChild(s);
+  });
+  return _echartsLoading;
+}
+const _charts = []; // live echarts instances — disposed on navigation (render() calls disposeCharts)
+function disposeCharts() { while (_charts.length) { const c = _charts.pop(); try { c.dispose(); } catch { /* already gone */ } } }
+function gv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888'; }
+
+// container HTML for the three relationship charts. depgraph null → nothing. Each chart renders its own
+// honest empty state (no data) inside initRelationshipCharts. Reused by upgrade report + experiment page.
+function relationshipChartsHtml(depgraph) {
+  if (!depgraph) return '';
+  return `<div class="panel"><h3>${t('rel.title')}</h3>
+    <p class="muted" style="font-size:12px;margin:0 0 8px">${fmt.esc(depgraph.disclaimer ?? t('rel.note'))}${depgraph.n != null ? ` · n=${depgraph.n}` : ''}</p>
+    <div class="rel-charts">
+      <div><div class="muted" style="font-size:12px">${t('rel.graph')}</div><div id="rc-graph" class="rel-chart"></div></div>
+      <div><div class="muted" style="font-size:12px">${t('rel.heat')}</div><div id="rc-heat" class="rel-chart"></div></div>
+      <div style="grid-column:1/-1"><div class="muted" style="font-size:12px">${t('rel.sankey')}</div><div id="rc-sankey" class="rel-chart" style="height:220px"></div></div>
+    </div></div>`;
+}
+
+async function initRelationshipCharts(depgraph) {
+  if (!depgraph) return;
+  const gEl = document.getElementById('rc-graph'), hEl = document.getElementById('rc-heat'), sEl = document.getElementById('rc-sankey');
+  if (!gEl && !hEl && !sEl) return;
+  const ok = await ensureEcharts();
+  if (!ok) { [gEl, hEl, sEl].forEach(el => { if (el) el.innerHTML = `<div class="muted">${t('rel.echartsFail')}</div>`; }); return; }
+  const pct = v => (v == null ? '—' : (v * 100).toFixed(0) + '%');
+  const empty = txt => `<div class="muted" style="padding:24px;text-align:center">${txt}</div>`;
+  // co-trigger graph (which skills fire together) — ported from report.js initGraph
+  const g = depgraph.graph;
+  if (gEl && g?.nodes?.length) {
+    const c = echarts.init(gEl, null, { renderer: 'canvas' }); _charts.push(c);
+    c.setOption({ tooltip: { formatter: p => p.dataType === 'edge' ? `${p.data.source} ↔ ${p.data.target}<br>${t('rel.coTrigger')} ${pct(p.data.value)}` : `${p.name}<br>${t('card.activation')} ${pct(p.value)}` },
+      series: [{ type: 'graph', layout: 'circular', roam: true,
+        data: g.nodes.map(n => ({ name: n.name, value: n.trigger, symbolSize: 14 + n.trigger * 46, itemStyle: { color: n.locked ? gv('--purple') : gv('--accent') }, label: { formatter: n.locked ? '🔒{b}' : '{b}' } })),
+        links: g.edges.map(e => ({ source: e.a, target: e.b, value: e.rate, lineStyle: { width: 1 + e.rate * 7, color: e.merge ? gv('--warn') : gv('--dim'), curveness: 0.08 } })),
+        label: { show: true, color: gv('--fg'), fontSize: 11 }, lineStyle: { opacity: .9 }, emphasis: { focus: 'adjacency' } }] });
+  } else if (gEl) gEl.innerHTML = empty(t('rel.noGraph'));
+  // co-read heatmap (which references get read together — merge candidates) — ported from initHeat
+  const h = depgraph.heatmap;
+  if (hEl && h?.refs?.length) {
+    const c = echarts.init(hEl, null, { renderer: 'canvas' }); _charts.push(c);
+    const data = []; h.matrix.forEach((row, i) => row.forEach((val, j) => { if (val != null) data.push([j, i, val]); }));
+    c.setOption({ tooltip: { position: 'top', formatter: p => `${h.refs[p.data[1]]} × ${h.refs[p.data[0]]}<br>${t('rel.coRead')} ${pct(p.data[2])}` }, grid: { left: 120, right: 20, top: 20, bottom: 90 },
+      xAxis: { type: 'category', data: h.refs, axisLabel: { color: gv('--dim'), rotate: 40, fontSize: 10 } }, yAxis: { type: 'category', data: h.refs, axisLabel: { color: gv('--dim'), fontSize: 10 } },
+      visualMap: { min: 0, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 6, textStyle: { color: gv('--dim') }, inRange: { color: ['#161b22', '#1f6feb', '#58a6ff', '#cae8ff'] } },
+      series: [{ type: 'heatmap', data, label: { show: true, formatter: p => p.data[2] ? (p.data[2] * 100).toFixed(0) : '', color: '#0d1117', fontSize: 10 }, itemStyle: { borderColor: gv('--border'), borderWidth: 1 } }] });
+  } else if (hEl) hEl.innerHTML = empty(t('rel.noHeat'));
+  // intent→skill→ref sankey — ported from initSankey
+  const s = depgraph.sankey;
+  if (sEl && s?.nodes?.length) {
+    const c = echarts.init(sEl, null, { renderer: 'canvas' }); _charts.push(c);
+    c.setOption({ tooltip: { trigger: 'item', triggerOn: 'mousemove' }, series: [{ type: 'sankey',
+      data: s.nodes.map(n => ({ name: n.name, itemStyle: { color: n.tier === 'intent' ? gv('--cyan') : n.tier === 'skill' ? gv('--purple') : gv('--dim') } })),
+      links: s.links, emphasis: { focus: 'adjacency' }, label: { color: gv('--fg'), fontSize: 11 }, lineStyle: { color: 'gradient', opacity: .3 }, nodeAlign: 'left' }] });
+  } else if (sEl) sEl.innerHTML = empty(t('rel.noSankey'));
+}
+
 // ---- U8 view: single upgrade comparison — verdict banner + 3-axis mini-delta cards + per-skill
 // red list + PM-B2 next steps + version quad. All read-only; the only action is "open full report".
 async function viewUpgrade(compareId) {
   const report = await api('upgrades/' + encodeURIComponent(compareId));
   const v = buildUpgradeView(report);
   if (!v) { $app.innerHTML = '<div class="empty">' + t('load.failed') + ' ' + fmt.esc(compareId) + '</div>'; return; }
-  const cfg = v.footer?.config ?? {};
-  const quad = v.footer?.versionQuad ?? null;
   $app.innerHTML = `
     <p><a href="#upgrades">← ${t('upg.title')}</a></p>
+    ${upgradeReportHtml(v, report)}`;
+  initRelationshipCharts(report.depgraph);
+}
+
+// Shared full-report renderer — used by the #upgrade/<id> deep page AND the Compare embed (Part C).
+// Returns the report HTML: verdict banner + next-steps + quality/cost axes (hand-SVG deltaRow) +
+// per-skill redlist + version quad + probe block + reference-relationship chart containers. The three
+// ECharts charts are initialised separately via initRelationshipCharts(report.depgraph) after this
+// HTML is in the DOM. `report` carries `.depgraph` (buildUpgradeView drops it); `v` is the view model.
+function upgradeReportHtml(v, report) {
+  const cfg = v.footer?.config ?? {};
+  const quad = v.footer?.versionQuad ?? null;
+  return `
     <div class="panel" style="border-color:var(--${v.tone === 'dim' ? 'border' : v.tone})">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-size:26px;color:var(--${v.tone === 'dim' ? 'dim' : v.tone})">${v.glyph}</span>
@@ -1985,6 +2085,7 @@ async function viewUpgrade(compareId) {
       <div class="muted" style="margin-top:8px">δ=${cfg.nonInferiorityDeltaPp ?? '?'}pp · ${statTip(t('upg.minPairsLabel') + '=' + (cfg.MIN_PAIRS ?? '?'), t('tip.upg.minPairs'))} · ${statTip(t('upg.minPairsSkillLabel') + '=' + (cfg.MIN_PAIRS_SKILL ?? '?'), 'MIN_PAIRS_SKILL · ' + t('tip.upg.referenceOnly'))} · CI=${cfg.ciLevel ?? '?'} · FDR=${fmt.esc(cfg.fdr ?? '?')}</div>
     </div>
     ${probeBlockPanel(v.probes)}
+    ${relationshipChartsHtml(report?.depgraph)}
     ${v.reportHtmlPath ? `<p><a href="/api/upgrades/${encodeURIComponent(v.compareId)}/report.html" target="_blank" rel="noopener" title="${t('upg.openReportTip')}">⬇ ${t('upg.openReport')} ↗</a></p>` : ''}`;
 }
 

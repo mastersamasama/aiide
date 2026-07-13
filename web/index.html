@@ -281,6 +281,9 @@ const I18N = {
     'cmp.pickReport': '— pick a report —', 'cmp.noReport': 'no upgrade report yet — run `aiide upgrade eval` to generate one',
     'cmp.reportNote': 'a statistical verdict needs the upgrade-eval cohort (N paired runs); a single pair only supports the deltas below',
     'cmp.cohortFrame': 'these two experiments belong to upgrade cohort',
+    'cmp.autoLive': 'generated live', 'cmp.notComparable': 'not comparable (different suite/model/runtime)',
+    'cmp.useDynamic': '— live report (A→B) —',
+    'cmp.dynamicFrame': 'full report generated live from the two experiments’ scorecards (no aiide upgrade run) — L2 = correctness (C); L1/L3 shown only where the suite measured routing/safety',
     'cmp.tally': 'per-task composite', 'cmp.improved': 'improved', 'cmp.regressed': 'regressed', 'cmp.flat': 'flat',
     'cmp.ciDisjoint': 'CI disjoint · 1-vs-1', 'cmp.ciDisjointTip': 'the two Wilson CIs do not overlap — a conservative 1-vs-1 signal the success rates differ (NOT a cohort verdict; run upgrade eval for that)',
     'na': 'n/a', 'partial': 'partial dims',
@@ -467,6 +470,9 @@ const I18N = {
     'cmp.pickReport': '— 选一份报告 —', 'cmp.noReport': '暂无 upgrade 报告——跑 `aiide upgrade eval` 生成',
     'cmp.reportNote': '统计判定需要 upgrade-eval 的 cohort（N 对配对）；单一配对只支撑下方的 delta',
     'cmp.cohortFrame': '这两个实验属于 upgrade cohort',
+    'cmp.autoLive': '即时生成', 'cmp.notComparable': '不可比（suite/model/runtime 不同）',
+    'cmp.useDynamic': '— 即时报告 (A→B) —',
+    'cmp.dynamicFrame': '完整报告由两个实验的成绩单即时生成（免跑 aiide upgrade）—— L2 = 正确性 (C)；L1/L3 仅在 suite 有量测 routing/safety 时显示',
     'cmp.tally': '逐题综合分', 'cmp.improved': '改善', 'cmp.regressed': '退步', 'cmp.flat': '持平',
     'cmp.ciDisjoint': 'CI 不重叠 · 1-vs-1', 'cmp.ciDisjointTip': '两组 Wilson CI 不重叠——保守的 1-vs-1 信号，表示成功率确有差异（不是 cohort verdict；要严谨判定请跑 upgrade eval）',
     'na': 'n/a', 'partial': '部分维度',
@@ -1108,18 +1114,22 @@ async function viewCompare(idA, idB) {
     const ta = a.tasks[tid], tb = b.tasks[tid];
     return (ta?.composite != null && tb?.composite != null) ? tb.composite - ta.composite : null;
   }));
+  // same suite/model/runtime → a full report can be built live from the two experiments (Phase 2)
+  const comparable = cohortComparable(a, b).comparable;
+  _cmpPair = { idA, idB, comparable };
   $app.innerHTML = `
     <p><a href="#experiments">${t('back.experiments')}</a></p>
     <h2 style="margin:6px 0">${t('compare.title')}</h2>
     ${causalCompareRow(a, b)}
     <div class="panel">
       <b>${t('cmp.reportTitle')}</b>
+      ${comparable ? `<span class="badge ok" style="margin-left:8px">${t('cmp.autoLive')}</span>` : `<span class="muted" style="margin-left:8px">${t('cmp.notComparable')}</span>`}
       ${upgrades.length
-        ? `<select class="md-in" style="margin-left:8px" onchange="renderCmpReport(this.value)">
-             <option value="">${t('cmp.pickReport')}</option>
+        ? `<select class="md-in" style="margin-left:8px" onchange="onCmpReportPick(this.value)">
+             <option value="">${comparable ? t('cmp.useDynamic') : t('cmp.pickReport')}</option>
              ${upgrades.map(u => `<option value="${fmt.esc(u.compareId)}">${fmt.esc(u.arms?.new ?? '?')} vs ${fmt.esc(u.arms?.old ?? '?')} · ${fmt.t(u.createdAt)}</option>`).join('')}
            </select>`
-        : `<span class="muted" style="margin-left:8px">${t('cmp.noReport')}</span>`}
+        : ''}
       <p class="muted" style="font-size:12px;margin:6px 0 0">${t('cmp.reportNote')}</p>
     </div>
     <div id="cmp-report"></div>
@@ -1154,25 +1164,50 @@ async function viewCompare(idA, idB) {
     ${!cohortComparable(a, b).comparable || (a.service?.endpointHost ?? null) !== (b.service?.endpointHost ?? null)
       ? `<p class="muted" style="border-left:3px solid var(--warn);padding-left:10px">${t('compare.crossRuntime')}</p>` : ''}
     <p class="muted">${t('compare.caveat')}</p>`;
+  if (comparable) renderDynamicCompare(idA, idB); // Phase 2: auto-build the full report live
 }
 
-// Part C: embed a REAL cohort upgrade report into the compare page (honest cohort frame — the report
-// is over N pairs, not these two experiments; the picker association is explicit). Reuses the shared
-// upgradeReportHtml + native relationship charts. Empty selection → clears the embed.
+let _cmpPair = null; // {idA, idB, comparable} for the picker's "back to live" option
+
+// Shared embed: render a report (dynamic or a pre-run cohort report) into #cmp-report with a framing
+// banner + native relationship charts. `dynamic` → the "generated live" banner; else the cohort frame.
+function embedUpgradeReport(box, report, { dynamic = false } = {}) {
+  const v = buildUpgradeView(report);
+  if (!v) { box.innerHTML = `<div class="empty">${t('load.failed')}</div>`; return; }
+  const banner = dynamic
+    ? `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.dynamicFrame')}</div>`
+    : `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.cohortFrame')} <code>${fmt.esc(report.cohort ?? report.compareId ?? '')}</code></div>`;
+  box.innerHTML = banner + upgradeReportHtml(v, report);
+  applyPersistedDetails(box);
+  initRelationshipCharts(report.depgraph);
+}
+
+// Phase 2: full report built live from the two experiments (no `aiide upgrade` run needed).
+async function renderDynamicCompare(idA, idB) {
+  const box = document.getElementById('cmp-report');
+  if (!box) return;
+  disposeCharts();
+  box.innerHTML = `<div class="muted">…</div>`;
+  try { embedUpgradeReport(box, await api(`compare/${encodeURIComponent(idA)}/${encodeURIComponent(idB)}/report`), { dynamic: true }); }
+  catch (e) { box.innerHTML = `<div class="empty">${t('load.failed')} ${fmt.esc(e.message)}</div>`; }
+}
+
+// Part C: embed a REAL pre-run cohort upgrade report (honest cohort frame). Reuses embedUpgradeReport.
 async function renderCmpReport(compareId) {
   const box = document.getElementById('cmp-report');
   if (!box) return;
   disposeCharts();
-  if (!compareId) { box.innerHTML = ''; return; }
   box.innerHTML = `<div class="muted">…</div>`;
-  try {
-    const report = await api('upgrades/' + encodeURIComponent(compareId));
-    const v = buildUpgradeView(report);
-    if (!v) { box.innerHTML = `<div class="empty">${t('load.failed')} ${fmt.esc(compareId)}</div>`; return; }
-    box.innerHTML = `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.cohortFrame')} <code>${fmt.esc(report.cohort ?? report.compareId ?? '')}</code></div>${upgradeReportHtml(v, report)}`;
-    applyPersistedDetails(box);
-    initRelationshipCharts(report.depgraph);
-  } catch (e) { box.innerHTML = `<div class="empty">${t('load.failed')} ${fmt.esc(e.message)}</div>`; }
+  try { embedUpgradeReport(box, await api('upgrades/' + encodeURIComponent(compareId)), { dynamic: false }); }
+  catch (e) { box.innerHTML = `<div class="empty">${t('load.failed')} ${fmt.esc(e.message)}</div>`; }
+}
+
+// picker: a value → that pre-run cohort report; empty → back to the live dynamic report (if comparable) else clear.
+function onCmpReportPick(value) {
+  const box = document.getElementById('cmp-report');
+  if (value) return void renderCmpReport(value);
+  if (_cmpPair?.comparable) return void renderDynamicCompare(_cmpPair.idA, _cmpPair.idB);
+  if (box) { disposeCharts(); box.innerHTML = ''; }
 }
 
 // §4 runtime 自述 diff — descriptor diff (name/version/prompt sha/tools 增删) rendered ALONGSIDE the

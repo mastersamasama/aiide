@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { redactSecrets, META_KEY_RE } from './meta.js';
 import { aggregateSkills } from './skills.js';
 import { resolveExpStats } from './statsresolve.js';
+import { buildDynamicCompareReport } from './comparedynamic.js';
 
 const WEB_DIR = fileURLToPath(new URL('../web', import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
@@ -43,6 +44,10 @@ export function createDashboardServer({ dataDir }) {
       const htmlMatch = path.match(/^\/api\/upgrades\/([^/]+)\/report\.html$/);
       if (htmlMatch) return sendUpgradeReportHtml(res, dataDir, safeId(htmlMatch[1]));
       if (path.startsWith('/api/upgrades/')) return sendUpgradeReport(res, dataDir, safeId(path.slice('/api/upgrades/'.length)));
+      // dynamic compare: build a full upgrade report from two same-suite experiments on the fly (no
+      // `aiide upgrade` run, nothing written). Read-only. GET /api/compare/<idA>/<idB>/report.
+      const cmpMatch = path.match(/^\/api\/compare\/([^/]+)\/([^/]+)\/report$/);
+      if (cmpMatch) return sendDynamicCompare(res, dataDir, safeId(decodeURIComponent(cmpMatch[1])), safeId(decodeURIComponent(cmpMatch[2])));
 
       // static assets
       const file = path === '/' ? 'index.html' : path.slice(1);
@@ -96,6 +101,28 @@ async function putAnnotations(req, res, dataDir, id) {
 }
 
 /** Experiment GET merges the sidecar so the client needs no second request. */
+// Load an experiment with its stats resolved (embedded or sidecar) — shared by the detail view and
+// the dynamic-compare endpoint so both see the same stats (incl. Part-D depgraph, S7 probes).
+function loadResolvedExperiment(dataDir, id) {
+  const file = join(dataDir, 'experiments', `${id}.json`);
+  if (!existsSync(file)) return null;
+  const exp = JSON.parse(readFileSync(file, 'utf8'));
+  exp.stats = resolveExpStats(exp, dataDir).stats;
+  return exp;
+}
+
+// GET /api/compare/<idA>/<idB>/report → a full upgrade report built live from the two experiments.
+// A = old/baseline, B = new/candidate. 404 if either is missing.
+function sendDynamicCompare(res, dataDir, idA, idB) {
+  const a = loadResolvedExperiment(dataDir, idA), b = loadResolvedExperiment(dataDir, idB);
+  if (!a || !b) return send(res, 404, { error: 'experiment not found' });
+  try {
+    return send(res, 200, buildDynamicCompareReport({ expA: a, expB: b }));
+  } catch (err) {
+    return send(res, 500, { error: 'dynamic compare failed: ' + String(err) });
+  }
+}
+
 function sendExperiment(res, dataDir, id) {
   const file = join(dataDir, 'experiments', `${id}.json`);
   if (!existsSync(file)) return send(res, 404, { error: 'not found' });

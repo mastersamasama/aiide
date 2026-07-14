@@ -103,7 +103,7 @@ aiide lab init --suite suite.json
 - `targetSkills` —— 你期望被触发的 skill 名，它的触发情况会喂给 P / R 两个维度。
 - `tasks` —— 一批任务，每个任务给一个 prompt 和若干 verifier（怎么判定答对）。
 
-如果只是想先看看效果，仓库里 `suites/` 下有现成可跑的示例（如 `suites/okx-demo-basic.json`），可以直接拿来跑。
+如果只是想先看看效果，仓库里 `suites/onchainos-basic.json` 是一份现成的参考 suite，展示了完整的结构（任务、verifier、评分）。它的 `skills.dirs` 用的是 `./skills/*` 占位路径——把它们指向你自己的 skill 目录就能跑。
 
 > 注意：示例 suite 里可能写了作者机器上的绝对路径或需要 API key 的服务配置。自己跑之前，把路径改成你本地的、把密钥换成你自己的（放在 `.aiide/service.env`，不要提交到版本库）。
 

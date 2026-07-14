@@ -10,6 +10,7 @@ import { loadSettings, saveSettings, parseMetaFlags, runCaptures, META_KEY_RE } 
 import { loadSuite, scaffoldSuite, lintSuite } from '../src/suite.js';
 import { recommendationText, failureCause } from '../src/report.js';
 
+const DEFAULT_PORT = 4517; // dashboard default; override with `aiide up --port N`
 const args = process.argv.slice(2);
 const cmd = args[0];
 const flags = {};
@@ -110,7 +111,7 @@ async function cmdIngest() {
 }
 
 async function cmdUp() {
-  const port = Number(flags.port ?? 4517);
+  const port = Number(flags.port ?? DEFAULT_PORT);
   const server = createDashboardServer({ dataDir });
   server.listen(port, '127.0.0.1', () => {
     console.log(`aiide dashboard → http://127.0.0.1:${port}  (data: ${dataDir}, local-only, read-only)`);
@@ -184,9 +185,9 @@ async function cmdLabRun() {
   if (exps.length > 1) {
     printComparison(exps);
     const [a, b] = exps;
-    console.log(`\ncompare view: http://127.0.0.1:4517/#compare/${encodeURIComponent(a.id)}/${encodeURIComponent(b.id)}`);
+    console.log(`\ncompare view: http://127.0.0.1:${DEFAULT_PORT}/#compare/${encodeURIComponent(a.id)}/${encodeURIComponent(b.id)}`);
   } else {
-    console.log(`\nview it: aiide up  →  http://127.0.0.1:4517/#experiment/${encodeURIComponent(exps[0].id)}`);
+    console.log(`\nview it: aiide up  →  http://127.0.0.1:${DEFAULT_PORT}/#experiment/${encodeURIComponent(exps[0].id)}`);
   }
 }
 

@@ -259,24 +259,29 @@ export function buildArmEnv(arm, baseEnv = process.env) {
 }
 
 function defaultVersionExec(arm) {
-  const bin = arm?.cliPath ?? 'onchainos';
+  // The CLI to preflight is whatever the arm declares. Generic: no product-specific default —
+  // an arm that declares a cliVersion must also say which binary carries it (arm.cliPath).
+  const bin = arm?.cliPath;
+  if (!bin)
+    throw new Error(`arm '${arm?.label ?? '?'}' declares cliVersion but no cliPath — cannot run the version preflight`);
   return execFileSync(bin, ['--version'], { env: buildArmEnv(arm), encoding: 'utf8' });
 }
 
 /**
- * Preflight assertion (R0.2.2): run `onchainos --version` for this arm and require it to equal the
+ * Preflight assertion (R0.2.2): run `<arm cli> --version` for this arm and require it to equal the
  * arm's declared cliVersion. Throws on mismatch so the caller fail-fasts BEFORE any session runs.
  * `exec` is injectable so tests can mock the version probe without a real binary.
  */
 export function assertArmVersion(arm, { exec = defaultVersionExec } = {}) {
   const reported = String(exec(arm) ?? '').trim();
-  // tolerate `onchainos 2.1.0` / `v2.1.0` framing — match the declared version as a token
+  // tolerate `<cli> 2.1.0` / `v2.1.0` framing — match the declared version as a token
   const declared = String(arm?.cliVersion ?? '').trim();
   const ok = reported === declared
     || new RegExp(`(^|[^0-9.])${declared.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^0-9.]|$)`).test(reported);
   if (!declared || !ok) {
+    const cli = arm?.cliPath ?? 'the arm CLI';
     throw new Error(`arm '${arm?.label ?? '?'}' version mismatch: declared ${declared || '(none)'}, `
-      + `onchainos --version reports "${reported || '(empty)'}" — refusing to start any session`);
+      + `${cli} --version reports "${reported || '(empty)'}" — refusing to start any session`);
   }
   return reported;
 }

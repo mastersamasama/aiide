@@ -424,7 +424,7 @@ aiide adapter check <output.json> --json   # 机读（shape 见下）
   "cmd": "node", "args": ["{{SUITE_DIR}}/../adapters/okx-demo-sse-driver.mjs", "{{PROMPT}}"],
   "service": {
     "cmd": "bun", "args": ["server/server.ts"],
-    "cwd": "D:/programme/ai/okx-onchainos-demo",
+    "cwd": "/path/to/your-demo-server",              // 你被測服務的目錄
     "env": { "AI_MODEL": "{{MODEL}}", "ENABLE_SSE": "1", "PORT": "3901" },
     "readyUrl": "http://127.0.0.1:3901/api/chats",   // poll 到 200 才開跑
     "readyTimeoutMs": 45000,
@@ -459,7 +459,7 @@ aiide 只在 experiment 記錄 **env 變數名清單與 endpoint host**（如 `a
 被測產品若用 `@anthropic-ai/sdk` 且未寫死 baseURL，SDK 原生支援 `ANTHROPIC_BASE_URL`：
 
 ```
-aiide lab run --suite aiide/suites/okx-demo-basic.json --models DeepSeek-V4-Pro
+aiide lab run --suite suites/onchainos-basic.json --models DeepSeek-V4-Pro
 ```
 
 搭配 service.env 裡的 `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic` 即測
@@ -467,8 +467,8 @@ DeepSeek 版產品。實測：DeepSeek-V4-Pro 經 anthropic-compat 端點 tool-u
 
 ### 4.2 okx-onchainos-demo 實例（已落地）
 
-`adapters/okx-demo-sse-driver.mjs` + `suites/okx-demo-basic.json`（與 onchainos-basic
-相同 3 題，跨 runtime 可比）。要點：
+參考 driver：`adapters/okx-demo-sse-driver.mjs`。搭配一份指向該 driver 的 suite
+即可（tasks 可直接沿用 `suites/onchainos-basic.json` 的題目，跨 runtime 可比）。要點：
 
 - 走 demo 的 **server-side agent loop**（SSE `GET /api/chat/stream` + `POST /api/chat/message`，
   `ENABLE_SSE=1`），`mode=alpha` 自動核准工具；`tool_use`/`tool_result` 幀即完整 trace，

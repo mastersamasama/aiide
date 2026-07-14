@@ -88,9 +88,12 @@ export function buildDynamicCompareReport({ expA, expB, config = UPGRADE_CONFIG,
       createdAt: now,
     },
   });
-  // reuse each experiment's Part-D reference-relationship (already depgraphToCharts-shaped); prefer the
-  // new arm's. buildReportJson set report.depgraph from a null input (empty) — overwrite with the real one.
-  report.depgraph = expB.stats?.depgraph ?? expA.stats?.depgraph ?? EMPTY_DEPGRAPH;
+  // reuse each experiment's Part-D reference-relationship (already depgraphToCharts-shaped). Prefer the
+  // arm that actually EXERCISED skills/refs — a cross-runtime external arm (okx via MCP) produces an
+  // empty depgraph, so picking the richer of the two keeps the diagrams populated instead of blank.
+  const dgRichness = (dg) => (dg?.graph?.nodes?.length ?? 0) + (dg?.sankey?.links?.length ?? 0) + (dg?.heatmap?.refs?.length ?? 0);
+  const dgA = expA.stats?.depgraph, dgB = expB.stats?.depgraph;
+  report.depgraph = (dgRichness(dgA) > dgRichness(dgB) ? dgA : dgB) ?? dgA ?? dgB ?? EMPTY_DEPGRAPH;
   report.dynamic = true;   // dashboard shows the "generated live from experiment scorecards" banner
   return report;
 }

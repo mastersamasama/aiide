@@ -285,6 +285,7 @@ const I18N = {
     'cmp.crossRt': 'cross-runtime', 'cmp.crossRtNote': 'cross-runtime pair: quality (C/L1/L2/L3) & references are comparable; cost/H axes are NOT (different runtime) — read them per-arm, not as a delta',
     'cmp.useDynamic': '— live report (A→B) —',
     'cmp.dynamicFrame': 'full report generated live from the two experiments’ scorecards (no aiide upgrade run) — L2 = correctness (C); L1/L3 shown only where the suite measured routing/safety',
+    'cmp.openFullHtml': 'open full report.html (all charts)',
     'cmp.tally': 'per-task composite', 'cmp.improved': 'improved', 'cmp.regressed': 'regressed', 'cmp.flat': 'flat',
     'cmp.ciDisjoint': 'CI disjoint · 1-vs-1', 'cmp.ciDisjointTip': 'the two Wilson CIs do not overlap — a conservative 1-vs-1 signal the success rates differ (NOT a cohort verdict; run upgrade eval for that)',
     'na': 'n/a', 'partial': 'partial dims',
@@ -475,6 +476,7 @@ const I18N = {
     'cmp.crossRt': '跨 runtime', 'cmp.crossRtNote': '跨 runtime 对比：质量 (C/L1/L2/L3) 与参考文档可比；成本/H 轴不可比（runtime 不同）—— 请按各 arm 单独读，勿当 delta',
     'cmp.useDynamic': '— 即时报告 (A→B) —',
     'cmp.dynamicFrame': '完整报告由两个实验的成绩单即时生成（免跑 aiide upgrade）—— L2 = 正确性 (C)；L1/L3 仅在 suite 有量测 routing/safety 时显示',
+    'cmp.openFullHtml': '打开完整 report.html（含全部图表）',
     'cmp.tally': '逐题综合分', 'cmp.improved': '改善', 'cmp.regressed': '退步', 'cmp.flat': '持平',
     'cmp.ciDisjoint': 'CI 不重叠 · 1-vs-1', 'cmp.ciDisjointTip': '两组 Wilson CI 不重叠——保守的 1-vs-1 信号，表示成功率确有差异（不是 cohort verdict；要严谨判定请跑 upgrade eval）',
     'na': 'n/a', 'partial': '部分维度',
@@ -1181,8 +1183,9 @@ let _cmpPair = null; // {idA, idB, comparable} for the picker's "back to live" o
 function embedUpgradeReport(box, report, { dynamic = false, crossRuntime = false } = {}) {
   const v = buildUpgradeView(report);
   if (!v) { box.innerHTML = `<div class="empty">${t('load.failed')}</div>`; return; }
+  const fullHtml = dynamic && _cmpPair ? `/api/compare/${encodeURIComponent(_cmpPair.idA)}/${encodeURIComponent(_cmpPair.idB)}/report.html` : null;
   const banner = dynamic
-    ? `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.dynamicFrame')}${crossRuntime ? `<br><span style="color:var(--warn)">⚠ ${t('cmp.crossRtNote')}</span>` : ''}</div>`
+    ? `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.dynamicFrame')}${crossRuntime ? `<br><span style="color:var(--warn)">⚠ ${t('cmp.crossRtNote')}</span>` : ''}${fullHtml ? `<div style="margin-top:6px"><a href="${fullHtml}" target="_blank" rel="noopener">⬇ ${t('cmp.openFullHtml')} ↗</a></div>` : ''}</div>`
     : `<div class="panel" style="border-left:3px solid var(--accent)">${t('cmp.cohortFrame')} <code>${fmt.esc(report.cohort ?? report.compareId ?? '')}</code></div>`;
   box.innerHTML = banner + upgradeReportHtml(v, report);
   applyPersistedDetails(box);

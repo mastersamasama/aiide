@@ -9,6 +9,7 @@ import { redactSecrets, META_KEY_RE } from './meta.js';
 import { aggregateSkills } from './skills.js';
 import { resolveExpStats } from './statsresolve.js';
 import { buildDynamicCompareReport } from './comparedynamic.js';
+import { buildReportHtml } from './report.js';
 
 const WEB_DIR = fileURLToPath(new URL('../web', import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
@@ -46,6 +47,10 @@ export function createDashboardServer({ dataDir }) {
       if (path.startsWith('/api/upgrades/')) return sendUpgradeReport(res, dataDir, safeId(path.slice('/api/upgrades/'.length)));
       // dynamic compare: build a full upgrade report from two same-suite experiments on the fly (no
       // `aiide upgrade` run, nothing written). Read-only. GET /api/compare/<idA>/<idB>/report.
+      // full single-file HTML report (ECharts CI bars + graph/heat/sankey) for a dynamic compare —
+      // same buildReportHtml the `aiide upgrade` pipeline emits, fed the live report. Opens in a new tab.
+      const cmpHtmlMatch = path.match(/^\/api\/compare\/([^/]+)\/([^/]+)\/report\.html$/);
+      if (cmpHtmlMatch) return sendDynamicCompareHtml(res, dataDir, safeId(decodeURIComponent(cmpHtmlMatch[1])), safeId(decodeURIComponent(cmpHtmlMatch[2])));
       const cmpMatch = path.match(/^\/api\/compare\/([^/]+)\/([^/]+)\/report$/);
       if (cmpMatch) return sendDynamicCompare(res, dataDir, safeId(decodeURIComponent(cmpMatch[1])), safeId(decodeURIComponent(cmpMatch[2])));
 
@@ -120,6 +125,19 @@ function sendDynamicCompare(res, dataDir, idA, idB) {
     return send(res, 200, buildDynamicCompareReport({ expA: a, expB: b }));
   } catch (err) {
     return send(res, 500, { error: 'dynamic compare failed: ' + String(err) });
+  }
+}
+
+// GET /api/compare/<A>/<B>/report.html → the full single-file HTML report (all ECharts) for the live compare.
+function sendDynamicCompareHtml(res, dataDir, idA, idB) {
+  const a = loadResolvedExperiment(dataDir, idA), b = loadResolvedExperiment(dataDir, idB);
+  if (!a || !b) return send(res, 404, { error: 'experiment not found' });
+  try {
+    const html = buildReportHtml(buildDynamicCompareReport({ expA: a, expB: b }));
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+    res.end(html);
+  } catch (err) {
+    return send(res, 500, { error: 'dynamic compare html failed: ' + String(err) });
   }
 }
 

@@ -878,11 +878,11 @@ export function toolUsageView(section, { nonAuthoritative = false } = {}) {
 }
 
 // §3.4 fileTargets — read/write三桶 + pathless disclosure; folded into the 工具使用 segment by the card.
-export const FILE_TARGETS_TITLE = '文件目标分布（fileTargets）';
+export const FILE_TARGETS_TITLE = 'o.fileTargets.title';
 export const FILE_TARGET_BUCKET_LABELS = {
-  skillRefs: 'skill 参考文档（skill-refs）',
-  workspace: '工作区（workspace）',
-  otherAbsolute: '其他绝对路径（other-absolute）',
+  skillRefs: 'o.fileTargets.skillRefs',
+  workspace: 'o.fileTargets.workspace',
+  otherAbsolute: 'o.fileTargets.otherAbsolute',
 };
 export function fileTargetsView(section, { nonAuthoritative = false } = {}) {
   if (section == null) return null;
@@ -901,7 +901,7 @@ export function fileTargetsView(section, { nonAuthoritative = false } = {}) {
     noCwdRuns: section.noCwdRuns ?? 0,
     reads: side(section.reads),
     writes: side(section.writes),
-    pathlessNote: '无路径参数的调用（pathless）单独披露，不入三桶',
+    pathlessNote: 'o.fileTargets.pathlessNote',
   };
 }
 
@@ -911,7 +911,7 @@ export function fileTargetsView(section, { nonAuthoritative = false } = {}) {
 // sidechainShare, selfReport, statsHealth } (any may be absent → that segment is null and the
 // renderer omits it). opts.estimatedCostUsd: caller-computed harness estimate juxtaposed against
 // the self-reported Σ (different calibers — the note spells that out, they are never merged).
-export const RUN_HEALTH_TITLE = '运行健康（cacheHitRate · truncation · sidechainShare · selfReport · statsHealth）';
+export const RUN_HEALTH_TITLE = 'o.runHealth.title';
 export function runHealthView(sections = {}, { nonAuthoritative = false, estimatedCostUsd = null } = {}) {
   const nonAuth = nonAuthoritative === true;
   const seg = (section, build) => {
@@ -920,30 +920,30 @@ export function runHealthView(sections = {}, { nonAuthoritative = false, estimat
     return { null: false, nonAuthoritative: nonAuth, ...build(section) };
   };
   const cache = seg(sections.cacheHitRate, (s) => ({
-    label: 'cache 命中率（cacheHitRate，逐轮 cacheR/footprint）',
+    label: 'o.runHealth.cache',
     n: s.n ?? 0, skippedRounds: s.skippedRounds ?? 0,
     mean: s.mean ?? null, min: s.min ?? null, max: s.max ?? null,
     byRepeat: s.byRepeat ?? [], // repeat-order warm-up table — descriptive, not causal
-    byRepeatNote: '按 repeat 序的暖化描述表（时序描述，非因果）',
+    byRepeatNote: 'o.runHealth.byRepeatNote',
   }));
   const truncation = seg(sections.truncation, (s) => ({
-    label: '输出截断（truncation，stopReason=max_tokens）',
+    label: 'o.runHealth.truncation',
     rounds: s.rounds ?? 0,
     truncatedRoundShare: s.truncatedRoundShare ?? null,
     finalRoundTruncated: s.finalRoundTruncated ?? null, // { runs, n, share|null } — 0/0 stays null
     unknownStopReason: s.unknownStopReason ?? 0,        // null-stopReason rounds: disclosed, never "未截断"
     unknownFinalRuns: s.unknownFinalRuns ?? 0,
     byReason: Object.entries(s.byReason ?? {}).map(([reason, count]) => ({ reason, count })),
-    unknownNote: '无 stop reason 的轮不入分母（未知不是未截断）',
+    unknownNote: 'o.runHealth.unknownNote',
   }));
   const sidechain = seg(sections.sidechainShare, (s) => ({
-    label: '子代理份额（sidechainShare）',
+    label: 'o.runHealth.sidechain',
     n: s.n ?? 0, runsWithSidechain: s.runsWithSidechain ?? 0,
     tokens: s.tokens ?? null, toolCalls: s.toolCalls ?? null, equivTokens: s.equivTokens ?? null,
-    equivNote: '开销量级份额以 equivTokens 计（恒定权重，非计价），share 为 null 时表示 0/0 不可知',
+    equivNote: 'o.runHealth.equivNote',
   }));
   const selfReport = seg(sections.selfReport, (s) => ({
-    label: '自报成本（selfReport，runtime result 行 Σ）',
+    label: 'o.runHealth.selfReport',
     runsWithSelfReport: s.runsWithSelfReport ?? 0,
     invocations: s.invocations ?? 0,
     totalCostUsd: s.total_cost_usd ?? null,
@@ -951,15 +951,15 @@ export function runHealthView(sections = {}, { nonAuthoritative = false, estimat
     durationMs: s.duration_ms ?? null,
     isError: s.is_error ?? null,
     estimatedCostUsd: estimatedCostUsd ?? null, // juxtaposed harness estimate — flagged, never merged
-    caliberNote: '自报 = runtime result 行逐次累加；估算 = harness 计价估算，两者口径不同，仅并列参考（估算恒标）',
+    caliberNote: 'o.runHealth.caliberNote',
   }));
   const statsHealth = seg(sections.statsHealth, (s) => ({
-    label: '观测管线健康（statsHealth）',
+    label: 'o.runHealth.statsHealth',
     exclusions: Object.entries(s.exclusionBreakdown ?? {}).map(([signature, count]) => ({ signature, count })),
     abortedAtStep: Object.entries(s.abortedAtStep ?? {}).map(([step, count]) => ({ step, count })),
     parseWarningsTotal: s.parseWarningsTotal ?? 0,
     timeoutRate: s.timeoutRate ?? null, // { timedOut, n, rate|null, legacyUnknown }
-    timeoutLegacyNote: '旧实验缺结构化超时字段的 rep 计入 legacyUnknown，不入分母（绝不用 error 字串回填）',
+    timeoutLegacyNote: 'o.runHealth.timeoutLegacyNote',
     retriedThenSucceeded: s.retriedThenSucceeded ?? 0,
     verifierFails: s.verifierFails ?? [], // top-10 most-red verifiers
   }));
@@ -984,15 +984,15 @@ export function runHealthView(sections = {}, { nonAuthoritative = false, estimat
 //   • the diff view model carries the mandated concurrent-factors framing sentence and NEVER
 //     any causal wording (导致/因此/因为 test-banned over the serialized output).
 
-export const RUNTIME_INFO_ABSENT = 'runtime 未提供自述（no runtime_info）';
-export const RUNTIME_INFO_DRIFT_NOTE = '多次重复间自述不一致（drift）';
-export const SYSTEM_PROMPT_ARCHIVED = '全文已存档（logs/runtime-info）';
-export const SYSTEM_PROMPT_SELF_REPORTED = '自报指纹（未经 harness 重算核验）';
+export const RUNTIME_INFO_ABSENT = 'o.rtInfo.absent';
+export const RUNTIME_INFO_DRIFT_NOTE = 'o.rtInfo.driftNote';
+export const SYSTEM_PROMPT_ARCHIVED = 'o.rtInfo.spArchived';
+export const SYSTEM_PROMPT_SELF_REPORTED = 'o.rtInfo.spSelfReported';
 // present-but-partial descriptor: each missing DIMENSION gets its own honest placeholder line
 export const RUNTIME_INFO_FIELD_ABSENT = {
-  systemPrompt: '未自述 system prompt（not reported）',
-  tools: '未自述工具清单（not reported）',
-  defaults: '未自述默认参数（not reported）',
+  systemPrompt: 'o.rtInfo.field.systemPrompt',
+  tools: 'o.rtInfo.field.tools',
+  defaults: 'o.rtInfo.field.defaults',
 };
 
 // Environment card view model. `env` = experiment.environment. No runtimeInfo at all (claude-code
@@ -1039,9 +1039,8 @@ export function runtimeInfoView(env) {
 }
 
 // §4 mandated framing — descriptor diff and metric deltas are JUXTAPOSED, never causally linked.
-export const CONCURRENT_FACTORS_FRAMING =
-  '以下为同期变更的环境因素（concurrent factors）——差异与指标变化并列呈现，不构成因果归因';
-export const RUNTIME_INFO_DIFF_ABSENT = '无 runtime 自述';
+export const CONCURRENT_FACTORS_FRAMING = 'o.rtInfo.concurrentFraming';
+export const RUNTIME_INFO_DIFF_ABSENT = 'o.rtInfo.diffAbsent';
 
 // Descriptor diff view model for the compare view. Neither side self-describes → null (nothing to
 // diff — each side's absence already shows on its own environment card). One side missing →
@@ -1100,14 +1099,16 @@ export function runtimeInfoDiff(envA, envB) {
 
 // Plain-language glossary for the NEW dashboard statistics/cli strings (single source, mirrors the
 // U7 report GLOSSARY). Main sentence is jargon-free; the original term rides in a trailing 括号.
+// Values are i18n keys; the renderer (gEx) resolves them via t('o.gloss.'+key). The plain-language
+// copy (en + zh) lives in the index.html dictionary.
 export const EXP_GLOSSARY = {
-  coverage: '跑过的题目里，某个能力真正被用到的比例（内部名 覆盖率）',
-  cliSink: '能让命令行工具自己做的事就交给它，一条命令能做完的别拆成多条（策略名 cli 下沉）',
-  commandSurface: '一个外部工具对外提供的全部子命令的集合（内部名 命令面）',
-  cooccur: '同一次运行里两样东西一起出现，只说明相关、不代表谁导致谁（统计名 共现）',
-  proximityStrength: '两样东西在操作序列里挨得多近、多常一前一后出现——只是时序邻近，不是因果（内部名 关联强度）',
-  neverTriggered: '有题目考这个 skill，它却从未触发（可能真没用上）',
-  notExercised: '没有任何题目考这个 skill——没给机会，不是死重',
-  nCoverageValid: '统计口径下的有效样本数；和记分卡的 n 不一样，记分卡把超时失败也算进去',
-  hypothesisSeq: '从数据里猜出来的命令连发模式，参数已被抹去、无法保证针对同一目标，需人工确认',
+  coverage: 'o.gloss.coverage',
+  cliSink: 'o.gloss.cliSink',
+  commandSurface: 'o.gloss.commandSurface',
+  cooccur: 'o.gloss.cooccur',
+  proximityStrength: 'o.gloss.proximityStrength',
+  neverTriggered: 'o.gloss.neverTriggered',
+  notExercised: 'o.gloss.notExercised',
+  nCoverageValid: 'o.gloss.nCoverageValid',
+  hypothesisSeq: 'o.gloss.hypothesisSeq',
 };

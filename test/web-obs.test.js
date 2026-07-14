@@ -889,8 +889,8 @@ test('EXP Stage4: dashboard carries the adapter-declared / provenance zh copy + 
   assert.match(html, /字节数不可知（内部名 adapter-declared）/);
   // run timeline: rounds carrying declared signals get the 自报 badge
   assert.match(html, /r\.declaredTriggers\?\.length \|\| r\.declaredRefReads\?\.length/);
-  assert.match(html, /本轮含 adapter 自报信号（declaredTriggers\/declaredRefReads）/);
-  assert.match(html, />自报<\/span>/);
+  assert.match(html, /'o\.round\.selfReportTip':\s*'本轮含 adapter 自报信号（declaredTriggers\/declaredRefReads）'/);
+  assert.match(html, /t\('o\.round\.selfReport'\)\}<\/span>/);
 });
 
 test('EXP: dashboard panel carries the new zh copy (error state, ignored sidecar, blocked ref, miss states)', () => {
@@ -1060,8 +1060,8 @@ test('T1S6 fileTargetsView: read/write三桶 + pathless disclosure outside the b
   assert.equal(v.reads.pathless, 1);                       // disclosed, NOT a fourth bucket
   assert.equal(v.reads.rows.some((r) => r.key === 'pathless'), false);
   assert.deepEqual(v.writes.rows.map((r) => r.count), [0, 5, 0]);
-  assert.match(v.reads.rows[0].label, /skill 参考文档（skill-refs）/);
-  assert.match(v.pathlessNote, /不入三桶/);
+  assert.equal(v.reads.rows[0].label, 'o.fileTargets.skillRefs');
+  assert.equal(v.pathlessNote, 'o.fileTargets.pathlessNote');
   assert.equal(v.n, 3);
   assert.equal(v.noCwdRuns, 1);
   const nul = fileTargetsView({ value: null, reason: 'no-cwd' }, { nonAuthoritative: true });
@@ -1079,31 +1079,30 @@ test('T1S6 runHealthView: five segments from real sections — cache warm-up tab
   assert.equal(v.cache.mean, 0.61);
   assert.deepEqual(v.cache.byRepeat.map((r) => r.meanCacheR), [0.4, 0.8]);
   assert.equal(v.cache.skippedRounds, 3);
-  assert.match(v.cache.byRepeatNote, /非因果/);
+  assert.equal(v.cache.byRepeatNote, 'o.runHealth.byRepeatNote');
   // truncation: the two scalars kept separate + unknown disclosures
   assert.equal(v.truncation.truncatedRoundShare, 0.1);
   assert.deepEqual(v.truncation.finalRoundTruncated, { runs: 1, n: 4, share: 0.25 });
   assert.equal(v.truncation.unknownStopReason, 2);
   assert.equal(v.truncation.unknownFinalRuns, 1);
   assert.deepEqual(v.truncation.byReason, [{ reason: 'end_turn', count: 18 }, { reason: 'max_tokens', count: 2 }]);
-  assert.match(v.truncation.unknownNote, /未知不是未截断/);
+  assert.equal(v.truncation.unknownNote, 'o.runHealth.unknownNote');
   // sidechain: three share axes; cost magnitude via equivTokens (§3.5 — no pricing dependency)
   assert.equal(v.sidechain.tokens.share, 0.2);
   assert.equal(v.sidechain.equivTokens.share, 0.25);
   assert.equal(v.sidechain.runsWithSidechain, 2);
-  assert.match(v.sidechain.equivNote, /equivTokens/);
+  assert.equal(v.sidechain.equivNote, 'o.runHealth.equivNote');
   // selfReport: self-reported Σ juxtaposed with the harness estimate — calibers spelled out, never merged
   assert.equal(v.selfReport.totalCostUsd, 0.123456);
   assert.equal(v.selfReport.invocations, 5);
   assert.equal(v.selfReport.estimatedCostUsd, 0.2);
   assert.equal(v.selfReport.isError, false);
-  assert.match(v.selfReport.caliberNote, /口径不同/);
-  assert.match(v.selfReport.caliberNote, /估算恒标/);
+  assert.equal(v.selfReport.caliberNote, 'o.runHealth.caliberNote');
   // statsHealth: exclusion/abort distributions + structured-only timeoutRate + verifier reds
   assert.deepEqual(v.statsHealth.exclusions, [{ signature: 'auth-expiry', count: 2 }]);
   assert.deepEqual(v.statsHealth.abortedAtStep, [{ step: '2', count: 1 }]);
   assert.deepEqual(v.statsHealth.timeoutRate, { timedOut: 1, n: 10, rate: 0.1, legacyUnknown: 2 });
-  assert.match(v.statsHealth.timeoutLegacyNote, /绝不用 error 字串回填/);
+  assert.equal(v.statsHealth.timeoutLegacyNote, 'o.runHealth.timeoutLegacyNote');
   assert.equal(v.statsHealth.retriedThenSucceeded, 1);
   assert.equal(v.statsHealth.parseWarningsTotal, 3);
   assert.equal(v.statsHealth.verifierFails[0].fails, 4);
@@ -1146,8 +1145,8 @@ test('T1S6 dashboard wiring: 运行观测/运行健康 cards render after the co
   // cards rendered on the experiment page AFTER the coverage-stats panel (diagnosticsSection array order)
   assert.match(html, /expStatsPanel\(e\),\s*runObsPanel\(e\), runHealthPanel\(e\)/);
   // dual-layer card titles: zh-hans headline + canonical section keys
-  assert.match(html, /运行观测 <span class="muted"[^>]*>context 组成 \+ 工具使用（contextComposition · toolUsage · fileTargets）/);
-  assert.match(html, /运行健康 <span class="muted"[^>]*>cache · 截断 · 子代理 · 自报成本 · 异常（cacheHitRate · truncation · sidechainShare · selfReport · statsHealth）/);
+  assert.match(html, /t\('o\.runObs\.title'\)[\s\S]{0,80}t\('o\.runObs\.titleSub'\)/);      // dual-layer run-observation title via keys
+  assert.match(html, /t\('o\.runHealth\.title'\)[\s\S]{0,80}t\('o\.runHealth\.titleSub'\)/); // dual-layer run-health title via keys
   // §3.0 source resolution: embedded v3 wins, supplemental supplies below that — caller decides
   assert.match(html, /\(stats\.schemaVersion \?\? 1\) >= 3 && key in stats/);
   assert.match(html, /e\.supplemental\?\.sections/);
@@ -1165,7 +1164,7 @@ test('T1S6 dashboard wiring: 运行观测/运行健康 cards render after the co
   // fileTargets is folded into the 运行观测 card (inside runObsPanel, not its own panel)
   const obsPanelSrc = html.slice(html.indexOf('function runObsPanel'), html.indexOf('function runHealthPanel'));
   assert.match(obsPanelSrc, /fileTargetsView\(ft\.section/);
-  assert.match(obsPanelSrc, /写（Write\/Edit\/NotebookEdit\/MultiEdit）/);
+  assert.match(obsPanelSrc, /sideRow\(t\('o\.fileTargets\.write'\), ftV\.writes\)/); // write-side row label via key
   // §3.1 copy ban holds in the rendering layer too: the 运行观测 panel never says 成本/花在
   assert.doesNotMatch(obsPanelSrc, /成本|花在/);
   // selfReport segment: 自报 Σ vs 估算 juxtaposed (both flagged, never merged)
@@ -1175,12 +1174,11 @@ test('T1S6 dashboard wiring: 运行观测/运行健康 cards render after the co
 });
 
 test('EXP_GLOSSARY: plain-language dashboard tooltips, no traditional-Chinese leakage', () => {
+  // glossary maps each term to its o.gloss.* i18n key; the plain-language copy (en + zh) lives in the
+  // index.html dictionary and is resolved by gEx via t(). (Traditional-Chinese leakage over the whole
+  // dictionary is covered by the CJK/traditional guard test below.)
   for (const key of ['coverage', 'cliSink', 'commandSurface', 'cooccur', 'proximityStrength', 'neverTriggered', 'notExercised', 'nCoverageValid', 'hypothesisSeq']) {
-    assert.ok(EXP_GLOSSARY[key], `${key} defined`);
-  }
-  const TRAD = /[專並圖實層過獨顯類軸賴議員併駐節組觸發讀證據鑽環跡統較檢總數絆線預變採確認複書達結論遠決強轉請補後點該關與舊門單對種現語義檔訊號邊寬紅選標虧審終態細兩狀時長進離攜製質診斷僅參歸據應個來為這們麼樣業縮範聯試觀讓]/;
-  for (const [k, v] of Object.entries(EXP_GLOSSARY)) {
-    assert.equal([...new Set(v.match(new RegExp(TRAD, 'g')) ?? [])].length, 0, `${k} leaked traditional: ${v}`);
+    assert.equal(EXP_GLOSSARY[key], 'o.gloss.' + key, `${key} maps to its dict key`);
   }
 });
 
@@ -1209,7 +1207,7 @@ test('W2S1: runtimeInfoView full descriptor — sha 前 12, bytes, tokensEst 恒
   assert.equal(v.systemPrompt.tokensEst, 14);
   assert.equal(v.systemPrompt.estimate, true);                     // tokensEst 恒标 estimate
   assert.deepEqual(v.systemPrompt.badge, { word: SYSTEM_PROMPT_ARCHIVED, tone: 'ok', kind: 'text-captured' });
-  assert.equal(SYSTEM_PROMPT_ARCHIVED, '全文已存档（logs/runtime-info）');
+  assert.equal(SYSTEM_PROMPT_ARCHIVED, 'o.rtInfo.spArchived');
   assert.deepEqual(v.tools, [{ name: 'price_get', kind: 'builtin' }]);
   assert.equal(v.defaults, null);
   assert.equal(v.drift, false);
@@ -1220,7 +1218,7 @@ test('W2S1: runtimeInfoView self-reported fingerprint — 自报指纹 badge (�
   const v = runtimeInfoView({ runtimeInfo: { name: 'x', version: '1',
     systemPrompt: { sha256: 'a'.repeat(64), bytes: 100, tokensEst: 25, selfReported: true }, tools: [], defaults: { temp: 0 } } });
   assert.deepEqual(v.systemPrompt.badge, { word: SYSTEM_PROMPT_SELF_REPORTED, tone: 'warn', kind: 'self-reported' });
-  assert.equal(SYSTEM_PROMPT_SELF_REPORTED, '自报指纹（未经 harness 重算核验）');
+  assert.equal(SYSTEM_PROMPT_SELF_REPORTED, 'o.rtInfo.spSelfReported');
   // a fingerprint WITHOUT textCaptured:true is never silently trusted — flag missing entirely → still self-reported
   const noFlag = runtimeInfoView({ runtimeInfo: { systemPrompt: { sha256: 'b'.repeat(64), bytes: 1, tokensEst: 1 } } });
   assert.equal(noFlag.systemPrompt.badge.kind, 'self-reported');
@@ -1237,7 +1235,7 @@ test('W2S1: runtimeInfoView drift — deduped digests >1 → drift note; identic
   const drifted = runtimeInfoView({ ...RI_ENV, runtimeInfoDrift: { digests: ['d1', 'd2', 'd1'] } });
   assert.equal(drifted.drift, true);
   assert.equal(drifted.driftNote, RUNTIME_INFO_DRIFT_NOTE);
-  assert.equal(RUNTIME_INFO_DRIFT_NOTE, '多次重复间自述不一致（drift）');
+  assert.equal(RUNTIME_INFO_DRIFT_NOTE, 'o.rtInfo.driftNote');
   assert.deepEqual(drifted.driftDigests, ['d1', 'd2']);
 });
 
@@ -1245,7 +1243,7 @@ test('W2S1: runtimeInfoView absence — honest placeholder, never blank; claude-
   const none = runtimeInfoView({});
   assert.equal(none.present, false);
   assert.equal(none.placeholder, RUNTIME_INFO_ABSENT);
-  assert.equal(RUNTIME_INFO_ABSENT, 'runtime 未提供自述（no runtime_info）');
+  assert.equal(RUNTIME_INFO_ABSENT, 'o.rtInfo.absent');
   assert.equal(none.version, null);
   // claude-code: runtime_info channel does not exist, but environment.runtimeVersion 可得 —
   // the ONE known dimension is carried, the rest is the honest placeholder
@@ -1258,9 +1256,9 @@ test('W2S1: runtimeInfoView absence — honest placeholder, never blank; claude-
   assert.equal(partial.present, true);
   assert.equal(partial.systemPrompt, null);
   assert.equal(partial.tools, null);
-  assert.equal(RUNTIME_INFO_FIELD_ABSENT.systemPrompt, '未自述 system prompt（not reported）');
-  assert.equal(RUNTIME_INFO_FIELD_ABSENT.tools, '未自述工具清单（not reported）');
-  assert.equal(RUNTIME_INFO_FIELD_ABSENT.defaults, '未自述默认参数（not reported）');
+  assert.equal(RUNTIME_INFO_FIELD_ABSENT.systemPrompt, 'o.rtInfo.field.systemPrompt');
+  assert.equal(RUNTIME_INFO_FIELD_ABSENT.tools, 'o.rtInfo.field.tools');
+  assert.equal(RUNTIME_INFO_FIELD_ABSENT.defaults, 'o.rtInfo.field.defaults');
 });
 
 test('W2S1: runtimeInfoDiff changed descriptors — version Δ, sha changed + bytes Δ, tools 增/删/不变, name change', () => {
@@ -1307,7 +1305,7 @@ test('W2S1: runtimeInfoDiff one-sided / both-absent — 无 runtime 自述 place
   assert.equal(dA.oneSided, true);
   assert.equal(dA.side, 'A');
   assert.equal(dA.placeholder, RUNTIME_INFO_DIFF_ABSENT);
-  assert.equal(RUNTIME_INFO_DIFF_ABSENT, '无 runtime 自述');
+  assert.equal(RUNTIME_INFO_DIFF_ABSENT, 'o.rtInfo.diffAbsent');
   assert.equal(dA.framing, CONCURRENT_FACTORS_FRAMING);
   assert.equal(dA.present.present, true);                          // the side that DID self-describe rides along
   assert.equal(dA.present.name, 'obs-smoke');
@@ -1320,8 +1318,7 @@ test('W2S1: runtimeInfoDiff one-sided / both-absent — 无 runtime 自述 place
 });
 
 test('W2S1: causal ban + framing constant — diff/view output carries the mandated framing and ZERO causal wording', () => {
-  assert.equal(CONCURRENT_FACTORS_FRAMING,
-    '以下为同期变更的环境因素（concurrent factors）——差异与指标变化并列呈现，不构成因果归因');
+  assert.equal(CONCURRENT_FACTORS_FRAMING, 'o.rtInfo.concurrentFraming');
   const envB = { runtimeInfo: { name: 'n2', version: '2',
     systemPrompt: { sha256: 'd'.repeat(64), bytes: 10, tokensEst: 3, selfReported: true },
     tools: [{ name: 'a', kind: 'builtin' }], defaults: { t: 1 } } };
@@ -1339,8 +1336,8 @@ test('W2S1 dashboard wiring: runtime 环境卡 self-description section + compar
   // experiment detail: the runtime-under-test panel renders the runtime_info section from the view model
   assert.match(html, /\$\{runtimeInfoHtml\(e\)\}/);
   assert.match(html, /runtimeInfoView\(e\.environment \?\? \{\}\)/);
-  assert.match(html, /runtime 自述<\/b> <span class="muted"[^>]*>（runtime_info，指纹形式）/);
-  assert.match(html, /（估算，estimate）/);                       // tokensEst 恒标估算 in the fingerprint line
+  assert.match(html, /t\('o\.rtInfo\.selfHeading'\)[\s\S]{0,80}t\('o\.rtInfo\.selfHeadingSub'\)/); // dual-layer heading via keys
+  assert.match(html, /'o\.badge\.estimate':\s*'估算（estimate）'/); // tokensEst estimate flag lives in the dict
   assert.match(html, /RUNTIME_INFO_FIELD_ABSENT\.systemPrompt/);   // per-dimension honest placeholders
   assert.match(html, /RUNTIME_INFO_FIELD_ABSENT\.tools/);
   assert.match(html, /RUNTIME_INFO_FIELD_ABSENT\.defaults/);
@@ -1351,14 +1348,14 @@ test('W2S1 dashboard wiring: runtime 环境卡 self-description section + compar
   // compare view: diff panel wired into viewCompare right after the metadata diff (minimal change)
   assert.match(html, /\$\{metadataDiffPanel\(a, b\)\}\s*\$\{runtimeInfoDiffPanel\(a, b\)\}/);
   assert.match(html, /runtimeInfoDiff\(a\.environment \?\? \{\}, b\.environment \?\? \{\}\)/);
-  assert.match(html, /runtime 自述对比 <span class="muted"[^>]*>（runtime_info descriptor diff）/);
-  assert.match(html, /\$\{fmt\.esc\(d\.framing\)\}/);              // mandated concurrent-factors framing rendered
-  assert.match(html, /（sha 变了）/);
-  assert.match(html, /（sha 未变）/);
-  assert.match(html, /bytes Δ /);
-  assert.match(html, /不变（unchanged）/);
-  assert.match(html, /一侧未自述工具清单——增删不可知（not reported）/);
-  assert.match(html, /无法做描述符 diff/);                          // one-sided placeholder row
+  assert.match(html, /t\('o\.rtInfo\.diffHeading'\)[\s\S]{0,80}t\('o\.rtInfo\.diffHeadingSub'\)/); // dual-layer diff heading via keys
+  assert.match(html, /\$\{fmt\.esc\(t\(d\.framing\)\)\}/);         // mandated concurrent-factors framing rendered (via key)
+  assert.match(html, /'o\.rtInfo\.shaChanged':\s*'（sha 变了）'/);
+  assert.match(html, /'o\.rtInfo\.shaSame':\s*'（sha 未变）'/);
+  assert.match(html, /'o\.rtInfo\.bytesDelta':\s*'（bytes Δ \{d\}）'/);
+  assert.match(html, /'o\.rtInfo\.toolsUnchanged'/);
+  assert.match(html, /'o\.rtInfo\.toolsUnknown':\s*'一侧未自述工具清单——增删不可知（not reported）'/);
+  assert.match(html, /'o\.rtInfo\.oneSided':.*无法做描述符 diff/);  // one-sided placeholder copy in dict
   // causal ban holds in the rendering layer too
   const panelSrc = html.slice(html.indexOf('function runtimeInfoDiffPanel'), html.indexOf('// S15: skill-version causal row'));
   assert.doesNotMatch(panelSrc, /导致|因此|因为/);
@@ -1405,4 +1402,63 @@ test('buildQuestionList: compositePartial fallback, null composite sorts last wi
   assert.equal(list[1].id, 'z', 'no-data row sorts last');
   assert.equal(list[1].hue, null, 'null composite → neutral hue');
   assert.equal(list[1].verdict, 'na');
+});
+
+// ---- i18n guard: no user-facing CJK may leak from obs.js or the index.html RENDER layer -----------
+// obs.js is a pure logic module: every display string it returns must be an i18n KEY, never Chinese.
+// The copy (en + zh-hans) lives ONLY in the index.html I18N dictionary. This test fails fast if a
+// future edit re-introduces zh-first hardcoding on either side.
+const CJK = /[一-鿿]/;
+test('i18n guard: obs.js exported display constants carry i18n keys, never CJK copy', () => {
+  const flat = (v, out = []) => {
+    if (typeof v === 'string') out.push(v);
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) flat(x, out);
+    return out;
+  };
+  const constants = {
+    UPGRADE_ENUM_GLOSS, BLOCK_STATUS_BADGE: undefined, EXP_GLOSSARY, FILE_TARGETS_TITLE,
+    FILE_TARGET_BUCKET_LABELS, RUN_HEALTH_TITLE, CONTEXT_COMPOSITION_TITLE, CONTEXT_BUCKET_LABELS,
+    TOOL_USAGE_TITLE, NULL_REASON_COPY, RUNTIME_INFO_ABSENT, RUNTIME_INFO_DRIFT_NOTE,
+    SYSTEM_PROMPT_ARCHIVED, SYSTEM_PROMPT_SELF_REPORTED, RUNTIME_INFO_FIELD_ABSENT,
+    CONCURRENT_FACTORS_FRAMING, RUNTIME_INFO_DIFF_ABSENT,
+  };
+  for (const [name, v] of Object.entries(constants)) {
+    if (v === undefined) continue;
+    for (const s of flat(v)) assert.doesNotMatch(s, CJK, `${name} leaks CJK copy: ${s}`);
+  }
+});
+
+test('i18n guard: obs.js view-model outputs are CJK-free (all copy resolved to keys)', () => {
+  const outputs = [
+    upgradeVerdictGlyph('inconclusive'), statsAuthorityBadge('embedded'), blockStatusBadge('suspect'),
+    statsProvenanceBadge('adapter-reported'),
+    contextCompositionView({ value: null, reason: 'no-cwd' }),
+    toolUsageView({ value: null, reason: 'no-valid-runs' }),
+    fileTargetsView({ value: null, reason: 'no-cwd' }),
+    runHealthView({ cacheHitRate: { value: null, reason: 'no-usage' } }),
+    nullReasonCopy('no-usage'), nullReasonCopy('some-unknown-reason'),
+  ];
+  for (const o of outputs) assert.doesNotMatch(JSON.stringify(o), CJK, `view output leaks CJK: ${JSON.stringify(o)}`);
+});
+
+test('i18n guard: index.html RENDER layer has no hardcoded CJK string literals (dict is the only home for copy)', () => {
+  const html = readFileSync(fileURLToPath(new URL('../web/index.html', import.meta.url)), 'utf8');
+  // isolate the I18N dictionary (the ONLY place CJK is allowed) via brace matching, then scan the rest
+  const start = html.indexOf('const I18N = {');
+  const objStart = html.indexOf('{', start);
+  let depth = 0, i = objStart, inStr = false, q = '', esc = false;
+  for (; i < html.length; i++) {
+    const c = html[i];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === q) inStr = false; continue; }
+    if (c === '"' || c === "'" || c === '`') { inStr = true; q = c; continue; }
+    if (c === '{') depth++; else if (c === '}') { depth--; if (depth === 0) { i++; break; } }
+  }
+  let renderCode = html.slice(0, start) + html.slice(i); // everything EXCEPT the dictionary object
+  // strip comments (CJK in dev comments is fine — only user-facing string literals matter)
+  renderCode = renderCode.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+  // any CJK left in the render code (strings or template literals) is a hardcoded-copy leak.
+  // ALLOWED exception: 简中 — the language switcher's own endonym, which must stay itself in any UI language.
+  const leaks = [...renderCode.matchAll(/[^\n]*[一-鿿][^\n]*/g)].map(m => m[0].trim())
+    .filter(l => !/setLang\('zh-hans'\)">简中</.test(l));
+  assert.deepEqual(leaks, [], `render layer leaks hardcoded CJK (move copy to the I18N dict): ${leaks.slice(0, 6).join('  ||  ')}`);
 });

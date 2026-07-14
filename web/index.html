@@ -18,9 +18,21 @@
     /* co-read heatmap ramp (low→high) + on-cell label, read by ECharts via gv() */
     --heat0: #161b22; --heat1: #1f6feb; --heat2: #58a6ff; --heat3: #cae8ff; --heat-label: #0d1117;
   }
-  /* Light theme: follows the OS/browser prefers-color-scheme automatically. GitHub-light palette. */
+  /* GitHub-light palette. Applied when the user PICKS light (data-theme="light"), or — when no
+     manual choice is set — automatically if the OS prefers light. A manual data-theme wins over the
+     media query in both directions: data-theme="dark" scopes the query out, so :root's dark defaults
+     hold. (The two blocks share the same declarations; kept explicit because CSS has no mixins.) */
+  :root[data-theme="light"] {
+    --bg: #ffffff; --panel: #f6f8fa; --panel2: #eaeef2; --border: #d0d7de;
+    --fg: #1f2328; --dim: #59636e; --accent: #0969da; --ok: #1a7f37; --warn: #9a6700;
+    --err: #cf222e; --purple: #8250df; --cyan: #1b7c83;
+    --border-skill: #d8c4f0; --border-err: #f3c0c4; --border-ok: #b4dcb9; --border-warn: #e8d59a;
+    --user-turn-border: #92c8a8; --user-turn-bg: rgba(26,127,55,0.06);
+    --shadow: rgba(31,35,40,.18);
+    --heat0: #eaeef2; --heat1: #cae8ff; --heat2: #79c0ff; --heat3: #2188ff; --heat-label: #0d1117;
+  }
   @media (prefers-color-scheme: light) {
-    :root {
+    :root:not([data-theme]) {
       --bg: #ffffff; --panel: #f6f8fa; --panel2: #eaeef2; --border: #d0d7de;
       --fg: #1f2328; --dim: #59636e; --accent: #0969da; --ok: #1a7f37; --warn: #9a6700;
       --err: #cf222e; --purple: #8250df; --cyan: #1b7c83;
@@ -171,6 +183,7 @@
   </nav>
   <input id="q" class="searchbox" type="search" autocomplete="off" oninput="applySearch()" onkeydown="searchKey(event)">
   <div class="lang" id="toolbar" style="margin-left:auto"></div>
+  <div class="lang" id="theme"></div>
   <div class="lang" id="lang"></div>
 </header>
 <main id="app"></main>
@@ -419,8 +432,71 @@ const I18N = {
     'o.toolUsage.kindSourceNote': 'classification source: self-reported (declared) first, the rest inferred by name (inferred)',
     'o.toolUsage.allowlistNote': 'the builtin/other boundary shifts with the aiide version (allowlistVersion) — align it before comparing across versions',
     'o.cov.panelTitle': 'coverage stats', 'o.cov.statsFailed': 'stats computation failed: ', 'o.cov.signal': 'signal',
-    'o.gloss.cliSink': 'cli sink', 'o.badge.estimate': 'estimated',
+    'o.label.cliSink': 'cli sink', 'o.badge.estimate': 'estimated',
     'o.stats.breakdown': 'split', 'o.stats.bd.valid': 'valid', 'o.stats.bd.excluded': 'excluded', 'o.stats.bd.heldOut': 'held-out', 'o.stats.bd.noSession': 'no session', 'o.stats.bd.unresolved': 'unresolved',
+    'theme.auto': 'Auto', 'theme.light': 'Light', 'theme.dark': 'Dark',
+    'theme.tip': 'Color theme — Auto follows your system. Click to cycle Auto → Light → Dark.',
+    // ---- wave-2 obs copy: fileTargets / run-observation & run-health panels / runtime-info / glossary tooltips ----
+    'o.fileTargets.title': 'file targets', 'o.fileTargets.skillRefs': 'skill refs', 'o.fileTargets.workspace': 'workspace', 'o.fileTargets.otherAbsolute': 'other absolute paths',
+    'o.fileTargets.pathlessNote': 'pathless calls are disclosed on their own, never bucketed', 'o.fileTargets.pathless': 'pathless', 'o.fileTargets.read': 'Read', 'o.fileTargets.write': 'Write / Edit / NotebookEdit / MultiEdit', 'o.fileTargets.noCwd': ' · skipped {n} runs with no cwd',
+    'o.runObs.title': 'run observation', 'o.runObs.titleSub': 'context makeup + tool usage (contextComposition · toolUsage · fileTargets)',
+    'o.runHealth.title': 'run health', 'o.runHealth.titleSub': 'cache · truncation · sub-agent · self-reported cost · pipeline',
+    'o.runHealth.cache': 'cache hit rate', 'o.runHealth.truncation': 'output truncation', 'o.runHealth.sidechain': 'sub-agent share', 'o.runHealth.selfReport': 'self-reported cost', 'o.runHealth.statsHealth': 'pipeline health',
+    'o.runHealth.byRepeatNote': 'warm-up table in repeat order — descriptive, not causal',
+    'o.runHealth.unknownNote': 'rounds with no stop reason stay out of the denominator (unknown ≠ not truncated)',
+    'o.runHealth.equivNote': 'magnitude share is measured in equivTokens (constant weights, not pricing); a null share means 0/0 — unknowable',
+    'o.runHealth.caliberNote': 'self-report sums the runtime result lines; the estimate is the harness pricing estimate — different calibers, shown side by side only',
+    'o.runHealth.timeoutLegacyNote': 'reps from old experiments with no structured timeout field count as legacyUnknown and stay out of the denominator (never backfilled from an error string)',
+    'o.runHealth.cacheBody': 'per-run mean of cacheR/footprint: {mean} ({min}–{max}) · n={n}', 'o.runHealth.cacheSkipped': ' · skipped {n} rounds with no usage / zero footprint',
+    'o.runHealth.colRepeat': 'repeat', 'o.runHealth.colMeanCache': 'mean cache hit', 'o.runHealth.zeroUnknown': ' (0/0 — unknowable)',
+    'o.runHealth.truncBody': 'truncated-round share {share} (over {rounds} rounds) · final-round truncated {final}', 'o.runHealth.truncUnknownStop': ' · {n} rounds with no stop reason — ', 'o.runHealth.truncUnknownFinal': ' · {n} runs with an undecidable final round', 'o.runHealth.stopDist': 'stopReason distribution: ',
+    'o.runHealth.unknownShare': '— (0/0 — unknowable)',
+    'o.runHealth.sidechainBody': 'tokens {tokens} · tool calls {tools} · magnitude (equivTokens) {equiv} · runs with a sub-agent {withSc}/{n}',
+    'o.runHealth.selfBody': 'self-reported Σ {self} ({runs} runs · {inv} result lines) vs estimate {est}', 'o.runHealth.notAvail': '— (not available)', 'o.runHealth.selfTurns': ' · self-reported turns Σ {n}', 'o.runHealth.selfDur': ' · self-reported time Σ {d}', 'o.runHealth.selfError': 'includes a self-reported error (is_error)',
+    'o.runHealth.exclDist': 'exclusion breakdown: ', 'o.runHealth.knownEmpty': 'none (known and empty)', 'o.runHealth.timeoutRate': 'timeout rate: ', 'o.runHealth.noKnownDenom': '— (no known denominator)', 'o.runHealth.legacyUnknown': ', plus {n} legacy-unknown — ',
+    'o.runHealth.abortDist': 'aborted-at-step: ', 'o.runHealth.abortStep': 'step {step} × {count}', 'o.runHealth.retried': 'retried then succeeded: {r} · parse warnings Σ {w}', 'o.runHealth.topRed': 'reddest verifiers: ',
+    'o.rtInfo.absent': 'runtime gave no self-description (no runtime_info)', 'o.rtInfo.driftNote': 'self-descriptions differ across repeats (drift)', 'o.rtInfo.spArchived': 'full text archived (logs/runtime-info)', 'o.rtInfo.spSelfReported': 'self-reported fingerprint (not re-verified by the harness)',
+    'o.rtInfo.field.systemPrompt': 'no self-reported system prompt (not reported)', 'o.rtInfo.field.tools': 'no self-reported tool list (not reported)', 'o.rtInfo.field.defaults': 'no self-reported defaults (not reported)',
+    'o.rtInfo.concurrentFraming': 'concurrent environment factors below — shown alongside the metric changes, NOT a causal attribution', 'o.rtInfo.diffAbsent': 'no runtime self-description', 'o.rtInfo.toolsEmpty': 'self-reported tool list is empty (0 tools)',
+    'o.rtInfo.selfHeading': 'runtime self-description', 'o.rtInfo.selfHeadingSub': 'runtime_info, as a fingerprint', 'o.rtInfo.diffHeading': 'runtime self-description diff', 'o.rtInfo.diffHeadingSub': 'runtime_info descriptor diff',
+    'o.rtInfo.oneSided': 'side {side}: {placeholder} (no runtime_info) — cannot build a descriptor diff; see the other side on its experiment page',
+    'o.rtInfo.shaChanged': '(sha changed)', 'o.rtInfo.shaSame': '(sha unchanged)', 'o.rtInfo.bytesDelta': '(bytes Δ {d})', 'o.rtInfo.toolsUnknown': 'one side did not self-describe its tool list — additions/removals unknowable (not reported)', 'o.rtInfo.toolsUnchanged': 'unchanged {n}', 'o.rtInfo.descriptor': 'descriptor',
+    'o.stats.sidecarSupplemental': 'a recomputed sidecar was not adopted by the authoritative numbers — its new sections are shown alongside as non-authoritative (below)',
+    'o.stats.sidecarIgnored': 'an ignored recomputed sidecar exists (for CLI diagnostics) — the sealed experiment stands on its embedded stats',
+    'o.stats.supplementalTitle': 'supplemental stats sections', 'o.stats.supplementalNote': 'schema v{from} → v{to} — the sealed numbers never change; the new sections below are a non-authoritative recompute', 'o.stats.nValid': 'valid sample n',
+    'o.round.selfReport': 'self-reported', 'o.round.selfReportTip': 'this round carries adapter self-reported signals (declaredTriggers/declaredRefReads)',
+    'o.seq.body': ': command chain {seq} ({cases} distinct tasks)', 'o.seq.collapse': ' · note: could use <code>{cmd}</code>', 'o.sep.comma': ', ', 'o.sep.colon': ': ',
+    'o.label.cliSink': 'cli sink',
+    'o.gloss.coverage': 'Of the tasks that ran, the share where this capability was actually used.',
+    'o.gloss.cliSink': 'Push work down to the CLI: if one command can do the job, keep it to one.',
+    'o.gloss.commandSurface': 'The full set of sub-commands an external tool exposes.',
+    'o.gloss.cooccur': 'Two things showing up in the same run — correlation only, not cause.',
+    'o.gloss.proximityStrength': 'How closely and how often two things follow one another in the action sequence — temporal adjacency, not cause.',
+    'o.gloss.neverTriggered': 'A task tests this skill, yet it never fired — it may genuinely be unused.',
+    'o.gloss.notExercised': 'No task tests this skill — it never got a chance, so it is not dead weight.',
+    'o.gloss.nCoverageValid': 'The stats-valid sample size — not the scorecard n, which also counts timeout failures.',
+    'o.gloss.hypothesisSeq': 'A command-chain pattern guessed from the data; arguments were stripped, so it may not target the same thing — needs human confirmation.',
+    'o.gloss.hypothesisSeqLabel': 'unverified hypothesis',
+    // ---- deep per-skill ref-coverage / miss detail + probe diagnostics ----
+    'o.ref.heading': 'reference-doc reads', 'o.ref.extSelfManaged': 'external runtime manages its own skills — no reference-doc inventory to check against (external-runtime-self-managed)', 'o.ref.noSnapshot': 'no inventory snapshot — reference-doc reads are unknowable (no-inventory-snapshot)',
+    'o.ref.adapterDeclaredBadge': 'inventory self-reported by the adapter (not verified against a harness snapshot)', 'o.ref.readCount': 'read {read}/{shipped}', 'o.ref.noInvNote': ' (inventory unknowable — observed reads only, no-inventory-snapshot)',
+    'o.ref.outOfInv': 'plus {n} out-of-inventory reads (self-reported) — docs read that are not in the self-reported inventory', 'o.ref.sharedReads': 'of which {n} are shared docs (_shared) that cannot be attributed to a specific skill (shared-hash-namespace)', 'o.ref.unread': 'unread (dead-weight candidates): ', 'o.ref.exemptedBefore': 'exempted before the dead-weight call: ',
+    'o.ref.rowExtSelfManaged': 'external runtime, self-managed (external-runtime-self-managed) — reference-doc inventory unknowable', 'o.ref.rowNoSnapshot': 'no snapshot (no-inventory-snapshot) — only observed reads can be shown, and this skill has no observed reads', 'o.ref.rowAdapterDeclared': 'inventory self-reported by the adapter (adapter-declared) — this skill is not in the self-reported inventory, so there is no reference-doc row to check',
+    'o.ref.colRef': 'reference doc (ref)', 'o.ref.colBytes': 'bytes', 'o.ref.colReadsCases': 'tasks read in (readsCases)', 'o.ref.colReadRate': 'read rate when triggered (readRateCoTriggered)', 'o.ref.colReadRateTip': 'tasks where this skill triggered AND this doc was read / tasks where this skill triggered (both counted by distinct task)',
+    'o.ref.sharedHashTip': 'a shared doc whose runtime name carries a content hash — bytes cannot be matched at seal time (shared-hash-namespace)', 'o.ref.adapterDeclaredTip': 'inventory self-reported by the adapter, no harness snapshot — bytes unknowable (adapter-declared)', 'o.ref.blocked': 'read blocked by permissions', 'o.ref.emptyKnown': 'no reference docs (known and empty)',
+    'o.probe.notConfigured': 'no external-tool probe configured (stats.probes = null)', 'o.probe.neverUsed': ' · never used {list}', 'o.probe.surfaceDrift': ' · command-surface drift {list}',
+    'o.probe.notComparable': '{tool}: the two versions expose different command surfaces, so they cannot be compared directly ({reason})',
+    'o.probe.excludedLabel': 'external command detected in an excluded run', 'o.probe.excludedTip': 'these runs are excluded, but a hit flags cases an exclusion rule would quietly wash away — like a new version that hammers commands and then stalls', 'o.probe.ranBody': ': {arm} ran <code>{tool}</code> in <code>{caseId}</code> {cmds}',
+    'o.label.proximity': 'proximity strength', 'o.proximity.sub': 'temporal adjacency, not causal · n={n}', 'o.proximity.colEdge': 'before → after', 'o.proximity.colCloseness': 'closeness', 'o.proximity.colConfidence': 'confidence',
+    'o.miss.heading': 'missed tasks (miss)', 'o.miss.hint': 'fix this skill trigger description, or narrow the trigger surface of whatever skill actually fired', 'o.miss.noSession': 'no session to judge', 'o.miss.firedInstead': 'fired instead (firedInstead): ', 'o.miss.firedNone': 'no skill fired (known and empty)', 'o.miss.partialTrigger': 'all misses are partial triggers (another rep on the same task hit) — no whole-task miss',
+    'o.skill.triggerRate': 'trigger rate (triggerRate) ', 'o.tool.mcpSplit': 'MCP server split', 'o.tool.calls': 'calls', 'o.tool.errors': 'errors', 'o.tool.denials': 'denials',
+    'o.probe.noData': 'no data', 'o.probe.usedUndeclared': 'used {n} (undeclared command surface)', 'o.probe.panelTitle': 'external-tool probes',
+    'o.ctxComp.colBucket': 'bucket', 'o.ctxComp.colShare': 'share (mean)', 'o.ctxComp.colRange': 'range (min–max)',
+    'o.ctxComp.compactionBody': '{n} runs · absolute mean ≈ {abs} tokens · mean share of denominator {share}', 'o.ctxComp.noCompaction': 'no compaction observed',
+    'o.ctxComp.skipUntagged': ' · skipped {n} untagged legacy runs', 'o.ctxComp.skipZeroRun': ' · skipped {n} zero-footprint runs', 'o.ctxComp.skipZeroRound': ' · skipped {n} zero-footprint rounds', 'o.ctxComp.peakFootprint': ' · peak footprint mean {v}', 'o.ctxComp.maxContrib': ' · max-contribution run <code>{run}</code>',
+    'o.cov.triggerCoverage': 'trigger coverage', 'o.tool.topTools': 'top tools (topTools): ', 'o.tool.errN': ' (err {n})', 'o.tool.denN': ' (denied {n})', 'o.proximity.subShort': 'temporal adjacency, not causal',
+    'o.tool.colKind': 'kind (kind)', 'o.tool.colMain': 'main (main)', 'o.tool.colSidechain': 'sub-agent (sidechain)', 'o.tool.colTotal': 'total', 'o.proximity.colVersion': 'version',
+    'o.probe.tripwired': 'too many tasks in this section were excluded, so the two versions cannot be compared here; the absolute values of each version are still shown as usual.',
   },
   'zh-hans': {
     'subtitle': '· 本地优先的 agent 可观测',
@@ -655,8 +731,71 @@ const I18N = {
     'o.toolUsage.kindSourceNote': '分类来源：自报（declared）优先，其余按名字推断（inferred）',
     'o.toolUsage.allowlistNote': 'builtin/other 边界随 aiide 版本演化（allowlistVersion），跨版本对比需对齐',
     'o.cov.panelTitle': '覆盖率统计', 'o.cov.statsFailed': '统计计算失败：', 'o.cov.signal': '信号',
-    'o.gloss.cliSink': 'cli 下沉', 'o.badge.estimate': '估算（estimate）',
+    'o.label.cliSink': 'cli 下沉', 'o.badge.estimate': '估算（estimate）',
     'o.stats.breakdown': '拆分', 'o.stats.bd.valid': '有效', 'o.stats.bd.excluded': '排除', 'o.stats.bd.heldOut': '留出', 'o.stats.bd.noSession': '无 session', 'o.stats.bd.unresolved': '未解析',
+    'theme.auto': '自动', 'theme.light': '浅色', 'theme.dark': '深色',
+    'theme.tip': '配色主题——自动跟随系统。点击循环 自动 → 浅色 → 深色。',
+    // ---- wave-2 obs 文案：fileTargets / 运行观测·运行健康 面板 / runtime-info / 术语 tooltip ----
+    'o.fileTargets.title': '文件目标分布', 'o.fileTargets.skillRefs': 'skill 参考文档', 'o.fileTargets.workspace': '工作区', 'o.fileTargets.otherAbsolute': '其他绝对路径',
+    'o.fileTargets.pathlessNote': '无路径参数的调用单独披露，不入分桶', 'o.fileTargets.pathless': '无路径', 'o.fileTargets.read': '读（Read）', 'o.fileTargets.write': '写（Write / Edit / NotebookEdit / MultiEdit）', 'o.fileTargets.noCwd': ' · 跳过无 cwd 的 run {n} 个',
+    'o.runObs.title': '运行观测', 'o.runObs.titleSub': 'context 组成 + 工具使用（contextComposition · toolUsage · fileTargets）',
+    'o.runHealth.title': '运行健康', 'o.runHealth.titleSub': '缓存 · 截断 · 子代理 · 自报成本 · 管线异常',
+    'o.runHealth.cache': '缓存命中率', 'o.runHealth.truncation': '输出截断', 'o.runHealth.sidechain': '子代理份额', 'o.runHealth.selfReport': '自报成本', 'o.runHealth.statsHealth': '观测管线健康',
+    'o.runHealth.byRepeatNote': '按 repeat 序的暖化描述表——只是时序描述，不是因果',
+    'o.runHealth.unknownNote': '无 stop reason 的轮不计入分母（未知 ≠ 未截断）',
+    'o.runHealth.equivNote': '开销量级份额以 equivTokens 计（恒定权重，非计价）；share 为 null 表示 0/0 不可知',
+    'o.runHealth.caliberNote': '自报是逐条累加 runtime 的 result 行；估算是 harness 的计价估算——口径不同，仅并列参考',
+    'o.runHealth.timeoutLegacyNote': '旧实验缺结构化超时字段的 rep 计入 legacyUnknown，不入分母（绝不用 error 字串回填）',
+    'o.runHealth.cacheBody': '逐轮 cacheR/footprint 的 run 均值：{mean}（{min}–{max}）· n={n}', 'o.runHealth.cacheSkipped': ' · 跳过无用量/零 footprint 轮 {n}',
+    'o.runHealth.colRepeat': 'repeat 序', 'o.runHealth.colMeanCache': '缓存命中率均值', 'o.runHealth.zeroUnknown': '（0/0 不可知）',
+    'o.runHealth.truncBody': '截断轮占比 {share}（分母 {rounds} 轮）· 末轮截断 run {final}', 'o.runHealth.truncUnknownStop': ' · 无 stop reason 轮 {n}——', 'o.runHealth.truncUnknownFinal': ' · 末轮不可判 run {n}', 'o.runHealth.stopDist': 'stopReason 分布：',
+    'o.runHealth.unknownShare': '—（0/0 不可知）',
+    'o.runHealth.sidechainBody': 'tokens {tokens} · 工具调用 {tools} · 开销量级（equivTokens）{equiv} · 含子代理 run {withSc}/{n}',
+    'o.runHealth.selfBody': '自报 Σ {self}（{runs} run · {inv} 次 result 行）vs 估算 {est}', 'o.runHealth.notAvail': '—（不可得）', 'o.runHealth.selfTurns': ' · 自报轮数 Σ {n}', 'o.runHealth.selfDur': ' · 自报耗时 Σ {d}', 'o.runHealth.selfError': '含自报错误（is_error）',
+    'o.runHealth.exclDist': '排除分布（exclusionBreakdown）：', 'o.runHealth.knownEmpty': '无（可知且为空）', 'o.runHealth.timeoutRate': '超时率（timeoutRate）：', 'o.runHealth.noKnownDenom': '—（无可知分母）', 'o.runHealth.legacyUnknown': '，另有 legacy 不可知 {n}——',
+    'o.runHealth.abortDist': '中止步分布（abortedAtStep）：', 'o.runHealth.abortStep': '步 {step} × {count}', 'o.runHealth.retried': '重试后成功（retriedThenSucceeded）：{r} · parse 警告 Σ {w}', 'o.runHealth.topRed': '最常红的 verifier：',
+    'o.rtInfo.absent': 'runtime 未提供自述（no runtime_info）', 'o.rtInfo.driftNote': '多次重复间自述不一致（drift）', 'o.rtInfo.spArchived': '全文已存档（logs/runtime-info）', 'o.rtInfo.spSelfReported': '自报指纹（未经 harness 重算核验）',
+    'o.rtInfo.field.systemPrompt': '未自述 system prompt（not reported）', 'o.rtInfo.field.tools': '未自述工具清单（not reported）', 'o.rtInfo.field.defaults': '未自述默认参数（not reported）',
+    'o.rtInfo.concurrentFraming': '以下为同期变更的环境因素——与指标变化并列呈现，不构成因果归因', 'o.rtInfo.diffAbsent': '无 runtime 自述', 'o.rtInfo.toolsEmpty': '自述工具清单为空（0 tools）',
+    'o.rtInfo.selfHeading': 'runtime 自述', 'o.rtInfo.selfHeadingSub': 'runtime_info，指纹形式', 'o.rtInfo.diffHeading': 'runtime 自述对比', 'o.rtInfo.diffHeadingSub': 'runtime_info descriptor diff',
+    'o.rtInfo.oneSided': '{side} 侧：{placeholder}（no runtime_info）——无法做描述符 diff；另一侧的自述见其实验详情页',
+    'o.rtInfo.shaChanged': '（sha 变了）', 'o.rtInfo.shaSame': '（sha 未变）', 'o.rtInfo.bytesDelta': '（bytes Δ {d}）', 'o.rtInfo.toolsUnknown': '一侧未自述工具清单——增删不可知（not reported）', 'o.rtInfo.toolsUnchanged': '不变 {n} 个', 'o.rtInfo.descriptor': '维度（descriptor）',
+    'o.stats.sidecarSupplemental': '重算 sidecar 未被权威数字采用——其新增统计节以非权威补算并列展示（见下）',
+    'o.stats.sidecarIgnored': '存在被忽略的重算 sidecar（CLI 诊断用）——封存实验以内嵌统计为准',
+    'o.stats.supplementalTitle': '补算统计节', 'o.stats.supplementalNote': 'schema v{from} → v{to}——封存数字不变，以下新增节为非权威补算', 'o.stats.nValid': '有效样本 n',
+    'o.round.selfReport': '自报', 'o.round.selfReportTip': '本轮含 adapter 自报信号（declaredTriggers/declaredRefReads）',
+    'o.seq.body': '：命令连发 {seq}（{cases} 个不同题目）', 'o.seq.collapse': ' · 注记：或可用 <code>{cmd}</code>', 'o.sep.comma': '，', 'o.sep.colon': '：',
+    'o.label.cliSink': 'cli 下沉',
+    'o.gloss.coverage': '跑过的题目里，这个能力真正被用到的比例。',
+    'o.gloss.cliSink': '能交给命令行工具自己做的就交给它——一条命令能完成的，别拆成多条。',
+    'o.gloss.commandSurface': '一个外部工具对外提供的全部子命令的集合。',
+    'o.gloss.cooccur': '两样东西在同一次运行里一起出现——只表示相关，不代表因果。',
+    'o.gloss.proximityStrength': '两样东西在操作序列里挨得多近、多常一前一后——只是时序邻近，不是因果。',
+    'o.gloss.neverTriggered': '有题目考这个 skill，它却从未触发——可能真的没用上。',
+    'o.gloss.notExercised': '没有题目考这个 skill——没给机会，不算死重。',
+    'o.gloss.nCoverageValid': '统计口径下的有效样本数——和记分卡的 n 不同，记分卡把超时失败也算进去。',
+    'o.gloss.hypothesisSeq': '从数据里猜出的命令连发模式，参数已被抹去、不保证针对同一目标，需人工确认。',
+    'o.gloss.hypothesisSeqLabel': '未验证假说',
+    // ---- 深层 per-skill 参考文档覆盖 / miss 明细 + probe 诊断 ----
+    'o.ref.heading': '参考文档读取', 'o.ref.extSelfManaged': '外部运行时自管 skills，无参考文档清单可核对（external-runtime-self-managed）', 'o.ref.noSnapshot': '无清单快照，参考文档读取不可知（no-inventory-snapshot）',
+    'o.ref.adapterDeclaredBadge': '清单由 adapter 自报（未经 harness 快照核验）', 'o.ref.readCount': '读到 {read}/{shipped}', 'o.ref.noInvNote': '（清单不可知，仅观测到的读取——no-inventory-snapshot）',
+    'o.ref.outOfInv': '另有 {n} 笔清单外读取（自报）——读到的文档不在自报清单内', 'o.ref.sharedReads': '其中 {n} 份为共享文档（_shared），无法归属到具体 skill（shared-hash-namespace）', 'o.ref.unread': '未读（死重候选）：', 'o.ref.exemptedBefore': '判死重前已豁免：',
+    'o.ref.rowExtSelfManaged': '外部运行时自管（external-runtime-self-managed）——参考文档清单不可知', 'o.ref.rowNoSnapshot': '无快照（no-inventory-snapshot）——仅能显示观测到的读取，此 skill 未观测到任何读取', 'o.ref.rowAdapterDeclared': '清单由 adapter 自报（adapter-declared）——该 skill 不在自报清单内，无参考文档行可核对',
+    'o.ref.colRef': '参考文档（ref）', 'o.ref.colBytes': '字节（bytes）', 'o.ref.colReadsCases': '读到题数（readsCases）', 'o.ref.colReadRate': '触发时读取率（readRateCoTriggered）', 'o.ref.colReadRateTip': '同一道题里该 skill 触发且这份参考文档被读到的题数 / 该 skill 触发过的题数（皆按不同题目计）',
+    'o.ref.sharedHashTip': '共享文档的运行期名字带内容哈希，封存时无法对上字节数（内部名 shared-hash-namespace）', 'o.ref.adapterDeclaredTip': '清单由 adapter 自报，无 harness 快照，字节数不可知（内部名 adapter-declared）', 'o.ref.blocked': '读取被权限拦截', 'o.ref.emptyKnown': '无参考文档（可知且为空）',
+    'o.probe.notConfigured': '未配置外部工具探针（stats.probes = null）', 'o.probe.neverUsed': ' · 从未用到 {list}', 'o.probe.surfaceDrift': ' · 命令面漂移 {list}',
+    'o.probe.notComparable': '{tool}：两版命令面不同，无法直接对比（{reason}）',
+    'o.probe.excludedLabel': '被剔除运行里检测到外部命令', 'o.probe.excludedTip': '这些运行已排除，但命中提醒你留意「新版狂打命令又中断」这类被排除规则悄悄洗掉的情况', 'o.probe.ranBody': '：{arm} 的 <code>{caseId}</code> 跑了 <code>{tool}</code> {cmds}',
+    'o.label.proximity': '关联强度', 'o.proximity.sub': '时序邻近，非因果 · n={n}', 'o.proximity.colEdge': '前 → 后', 'o.proximity.colCloseness': '紧邻度', 'o.proximity.colConfidence': '置信',
+    'o.miss.heading': '未命中题目（miss）', 'o.miss.hint': '修这个 skill 的触发描述，或收窄实际抢答 skill 的触发面', 'o.miss.noSession': '无 session 可判', 'o.miss.firedInstead': '实际触发（firedInstead）：', 'o.miss.firedNone': '未触发任何 skill（可知且为空）', 'o.miss.partialTrigger': 'miss 均为部分触发（同题其他 rep 已命中），无整题落空',
+    'o.skill.triggerRate': '触发率（triggerRate）', 'o.tool.mcpSplit': 'MCP server 切分', 'o.tool.calls': '调用（calls）', 'o.tool.errors': '错误（errors）', 'o.tool.denials': '权限拒绝（denials）',
+    'o.probe.noData': '无数据', 'o.probe.usedUndeclared': '用到 {n} 条（未宣告命令面）', 'o.probe.panelTitle': '外部工具探针',
+    'o.ctxComp.colBucket': '组成桶', 'o.ctxComp.colShare': '占比（均值）', 'o.ctxComp.colRange': '范围（min–max）',
+    'o.ctxComp.compactionBody': '{n} 个 run 出现 · 绝对量均值 ≈ {abs} tokens · 相对分母均值 {share}', 'o.ctxComp.noCompaction': '未观测到压缩',
+    'o.ctxComp.skipUntagged': ' · 跳过未标记旧 run {n}', 'o.ctxComp.skipZeroRun': ' · 跳过零 footprint run {n}', 'o.ctxComp.skipZeroRound': ' · 跳过零 footprint 轮 {n}', 'o.ctxComp.peakFootprint': ' · 峰值 footprint 均值 {v}', 'o.ctxComp.maxContrib': ' · 最大贡献 run <code>{run}</code>',
+    'o.cov.triggerCoverage': '触发覆盖', 'o.tool.topTools': '高频工具（topTools）：', 'o.tool.errN': '（错 {n}）', 'o.tool.denN': '（拒 {n}）', 'o.proximity.subShort': '时序邻近，非因果',
+    'o.tool.colKind': '类别（kind）', 'o.tool.colMain': '主链（main）', 'o.tool.colSidechain': '子代理（sidechain）', 'o.tool.colTotal': '合计', 'o.proximity.colVersion': '版本',
+    'o.probe.tripwired': '本节被剔除的题占比过高，两版对比无法判定；各版本绝对值仍照常展示。',
   },
 };
 let lang = localStorage.getItem('aiide-lang')
@@ -666,12 +805,34 @@ const t = k => I18N[lang][k] ?? I18N.en[k] ?? k;
 // t() with {placeholder} interpolation, for the few templated strings (e.g. o.stats.upgradeHint).
 const tf = (k, params = {}) => t(k).replace(/\{(\w+)\}/g, (_, p) => params[p] ?? `{${p}}`);
 function setLang(l) { lang = l; localStorage.setItem('aiide-lang', l); applyChrome(); render(); }
+
+// ---- theme: Auto (follow OS) → Light → Dark, cycled by a header button, persisted locally ----
+const THEME_CYCLE = ['auto', 'light', 'dark'];
+const THEME_ICON = { auto: '🖥', light: '☀', dark: '🌙' };
+let theme = localStorage.getItem('aiide-theme') ?? 'auto';
+if (!THEME_CYCLE.includes(theme)) theme = 'auto';
+function applyTheme() {
+  // 'auto' removes the attribute so @media(prefers-color-scheme) decides; light/dark force it.
+  if (theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+}
+function cycleTheme() {
+  theme = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
+  localStorage.setItem('aiide-theme', theme);
+  applyTheme();
+  applyChrome();
+  render(); // charts read their colours from CSS vars at render time (see the matchMedia listener)
+}
+applyTheme(); // apply the stored choice immediately, before first paint
+
 function applyChrome() {
   document.documentElement.lang = lang === 'zh-hans' ? 'zh-Hans' : 'en';
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.getElementById('lang').innerHTML =
     `<button class="${lang === 'en' ? 'on' : ''}" onclick="setLang('en')">EN</button> ` +
     `<button class="${lang === 'zh-hans' ? 'on' : ''}" onclick="setLang('zh-hans')">简中</button>`;
+  document.getElementById('theme').innerHTML =
+    `<button onclick="cycleTheme()" title="${t('theme.tip')}">${THEME_ICON[theme]} ${t('theme.' + theme)}</button>`;
   document.getElementById('toolbar').innerHTML =
     `<button onclick="exportPng()" title="${t('export.pngTip')}">📷 ${t('export.png')}</button> ` +
     `<button onclick="exportHtml()" title="${t('export.htmlTip')}">⬇ ${t('export.html')}</button>`;
@@ -760,7 +921,8 @@ const fmt = {
   ms: x => x >= 60000 ? (x/60000).toFixed(1)+'m' : x >= 1000 ? (x/1000).toFixed(1)+'s' : (x??0)+'ms',
   usd: x => '$' + (x ?? 0).toFixed(4),
   pct: x => ((x ?? 0) * 100).toFixed(0) + '%',
-  t: s => s ? new Date(s).toLocaleString(lang === 'zh-hans' ? 'zh-CN' : undefined) : '—',
+  // explicit locale per language — never `undefined` (that inherits the OS locale, e.g. Chinese 上午/下午 in EN mode)
+  t: s => s ? new Date(s).toLocaleString(lang === 'zh-hans' ? 'zh-CN' : 'en-US', { hour12: false }) : '—',
   esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
 };
 async function api(path) {
@@ -1138,7 +1300,7 @@ function roundRow(r) {
     <summary>
       <b>#${r.seq}</b>
       ${r.attributionSkill ? `<span class="badge skill">${fmt.esc(r.attributionSkill)}</span>` : ''}
-      ${(r.declaredTriggers?.length || r.declaredRefReads?.length) ? `<span class="badge warn" title="本轮含 adapter 自报信号（declaredTriggers/declaredRefReads）${r.declaredTriggers?.length ? '：' + r.declaredTriggers.map(s => fmt.esc(s)).join(', ') : ''}">自报</span>` : ''}
+      ${(r.declaredTriggers?.length || r.declaredRefReads?.length) ? `<span class="badge warn" title="${t('o.round.selfReportTip')}${r.declaredTriggers?.length ? t('o.sep.colon') + r.declaredTriggers.map(s => fmt.esc(s)).join(', ') : ''}">${t('o.round.selfReport')}</span>` : ''}
       ${r.toolCalls.map(tc => `<span class="badge ${tc.isError ? 'err' : ''}">${fmt.esc(tc.name)}${tc.skill ? ':' + fmt.esc(tc.skill) : ''}${tc.isError ? ' ✗' : ''}</span>`).join('')}
       <span class="muted" style="float:right">${fmt.ms(r.durationMs)} · ${term(t('round.ctx') + ' ' + fmt.n(r.contextFootprint), t('tip.ctx'), 'right')}${delta != null ? ` ${term(`<b style="color:${deltaSignificant(delta, r.contextFootprint) ? (delta > 0 ? 'var(--warn)' : 'var(--ok)') : 'var(--dim)'}">(${delta >= 0 ? '+' : ''}${fmt.n(delta)})</b>`, t('tip.delta'), 'right')}` : ''} · ${term(t('round.out') + ' ' + fmt.n(u.out), t('tip.out'), 'right')}</span>
     </summary>
@@ -1356,34 +1518,34 @@ function onCmpReportPick(value) {
 function runtimeInfoDiffPanel(a, b) {
   const d = runtimeInfoDiff(a.environment ?? {}, b.environment ?? {});
   if (!d) return '';
-  const head = `<div class="panel"><h3>runtime 自述对比 <span class="muted" style="font-size:12px">（runtime_info descriptor diff）</span></h3>
-    <p class="muted" style="font-size:12px;border-left:3px solid var(--dim);padding-left:10px">${fmt.esc(d.framing)}</p>`;
+  const head = `<div class="panel"><h3>${t('o.rtInfo.diffHeading')} <span class="muted" style="font-size:12px">${t('o.rtInfo.diffHeadingSub')}</span></h3>
+    <p class="muted" style="font-size:12px;border-left:3px solid var(--dim);padding-left:10px">${fmt.esc(t(d.framing))}</p>`;
   if (d.oneSided) {
     // one-sided: name the side WITHOUT a self-description; no descriptor diff is fabricated
-    return `${head}<div class="muted">${d.side === 'A' ? 'A' : 'B'} 侧：${fmt.esc(d.placeholder)}（no runtime_info）——无法做描述符 diff；另一侧的自述见其实验详情页环境卡</div></div>`;
+    return `${head}<div class="muted">${tf('o.rtInfo.oneSided', { side: d.side === 'A' ? 'A' : 'B', placeholder: fmt.esc(d.placeholder) })}</div></div>`;
   }
   const cell = (txt, hl) => `<td class="${hl ? 'diff-hl' : 'muted'}">${txt}</td>`;
   const row = (k, va, vb, changed) => `<tr${changed ? ' class="diff-row"' : ''}><td class="muted">${k}</td>${cell(va, changed)}${cell(vb, changed)}</tr>`;
   const sp = d.systemPrompt;
-  const spCell = (sha, bytes) => sha ? `<code>${fmt.esc(sha)}</code>${bytes != null ? ` · ${fmt.n(bytes)} B` : ''}` : fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt);
+  const spCell = (sha, bytes) => sha ? `<code>${fmt.esc(sha)}</code>${bytes != null ? ` · ${fmt.n(bytes)} B` : ''}` : fmt.esc(t(RUNTIME_INFO_FIELD_ABSENT.systemPrompt));
   const spRow = sp
-    ? row(`system prompt <span class="muted">${sp.changed ? '（sha 变了）' : '（sha 未变）'}</span>`,
+    ? row(`system prompt <span class="muted">${sp.changed ? t('o.rtInfo.shaChanged') : t('o.rtInfo.shaSame')}</span>`,
         spCell(sp.shaShortA, sp.bytesA),
-        spCell(sp.shaShortB, sp.bytesB) + (sp.changed && sp.bytesDelta != null ? ` <span class="muted">（bytes Δ ${sp.bytesDelta >= 0 ? '+' : ''}${fmt.n(sp.bytesDelta)}）</span>` : ''),
+        spCell(sp.shaShortB, sp.bytesB) + (sp.changed && sp.bytesDelta != null ? ` <span class="muted">${tf('o.rtInfo.bytesDelta', { d: (sp.bytesDelta >= 0 ? '+' : '') + fmt.n(sp.bytesDelta) })}</span>` : ''),
         sp.changed)
-    : row('system prompt', fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt), fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt), false);
-  // tools 增/删/不变 — unknowable when a side did not self-describe its list (never a fake empty diff)
+    : row('system prompt', fmt.esc(t(RUNTIME_INFO_FIELD_ABSENT.systemPrompt)), fmt.esc(t(RUNTIME_INFO_FIELD_ABSENT.systemPrompt)), false);
+  // tools added/removed/unchanged — unknowable when a side did not self-describe its list
   const tl = d.tools;
   const toolsChanged = !tl.unknown && (tl.added.length > 0 || tl.removed.length > 0);
   const toolsBody = tl.unknown
-    ? '<span class="muted">一侧未自述工具清单——增删不可知（not reported）</span>'
+    ? `<span class="muted">${t('o.rtInfo.toolsUnknown')}</span>`
     : [
-        tl.added.length ? `<span style="color:var(--ok)">＋ ${tl.added.map(fmt.esc).join('，')}</span>` : '',
-        tl.removed.length ? `<span style="color:var(--err)">－ ${tl.removed.map(fmt.esc).join('，')}</span>` : '',
-        `<span class="muted">不变（unchanged）${tl.unchanged.length} 个${tl.unchanged.length ? '：' + tl.unchanged.map(fmt.esc).join('，') : ''}</span>`,
+        tl.added.length ? `<span style="color:var(--ok)">＋ ${tl.added.map(fmt.esc).join(t('o.sep.comma'))}</span>` : '',
+        tl.removed.length ? `<span style="color:var(--err)">－ ${tl.removed.map(fmt.esc).join(t('o.sep.comma'))}</span>` : '',
+        `<span class="muted">${tf('o.rtInfo.toolsUnchanged', { n: tl.unchanged.length })}${tl.unchanged.length ? t('o.sep.colon') + tl.unchanged.map(fmt.esc).join(t('o.sep.comma')) : ''}</span>`,
       ].filter(Boolean).join(' · ');
   return `${head}
-    <table><thead><tr><th>维度（descriptor）</th><th class="cmp-a">A</th><th class="cmp-b">B</th></tr></thead><tbody>
+    <table><thead><tr><th>${t('o.rtInfo.descriptor')}</th><th class="cmp-a">A</th><th class="cmp-b">B</th></tr></thead><tbody>
       ${row('name', fmt.esc(d.name.a ?? '—'), fmt.esc(d.name.b ?? '—'), d.name.changed)}
       ${row('version', fmt.esc(d.version.a ?? '—'), fmt.esc(d.version.b ?? '—'), d.version.changed)}
       ${spRow}
@@ -1551,17 +1713,17 @@ function runtimeInfoHtml(e) {
   if (!v.present) return `<div class="diag muted" style="margin-top:6px">${fmt.esc(v.placeholder)}</div>`;
   const sp = v.systemPrompt;
   const spLine = sp
-    ? `<code>${fmt.esc(sp.shaShort ?? '—')}</code>${sp.bytes != null ? ` · ${fmt.n(sp.bytes)} B` : ''}${sp.tokensEst != null ? ` · ≈ ${fmt.n(sp.tokensEst)} tokens <span class="muted">（估算，estimate）</span>` : ''} <span class="badge ${sp.badge.tone === 'ok' ? 'ok' : 'warn'}">${fmt.esc(t(sp.badge.word))}</span>`
-    : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt)}</span>`;
+    ? `<code>${fmt.esc(sp.shaShort ?? '—')}</code>${sp.bytes != null ? ` · ${fmt.n(sp.bytes)} B` : ''}${sp.tokensEst != null ? ` · ≈ ${fmt.n(sp.tokensEst)} tokens <span class="muted">${t('o.badge.estimate')}</span>` : ''} <span class="badge ${sp.badge.tone === 'ok' ? 'ok' : 'warn'}">${fmt.esc(t(sp.badge.word))}</span>`
+    : `<span class="muted">${fmt.esc(t(RUNTIME_INFO_FIELD_ABSENT.systemPrompt))}</span>`;
   const toolsLine = v.tools
     ? (v.tools.length
         ? v.tools.map(tl => `<span class="badge">${fmt.esc(tl.name)}${tl.kind ? ` <span class="muted">${fmt.esc(tl.kind)}</span>` : ''}</span>`).join(' ')
-        : '<span class="muted">自述工具清单为空（0 tools）</span>')
-    : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.tools)}</span>`;
+        : `<span class="muted">${t('o.rtInfo.toolsEmpty')}</span>`)
+    : `<span class="muted">${fmt.esc(t(RUNTIME_INFO_FIELD_ABSENT.tools))}</span>`;
   const defaultsLine = v.defaults != null
     ? `<code>${fmt.esc(JSON.stringify(v.defaults))}</code>`
-    : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.defaults)}</span>`;
-  return `<div style="margin-top:8px"><b>runtime 自述</b> <span class="muted" style="font-size:12px">（runtime_info，指纹形式）</span>${v.driftNote ? ` <span class="badge warn" title="${fmt.esc(v.driftDigests.map(d => d.slice(0, 12)).join(' · '))}">${fmt.esc(v.driftNote)}</span>` : ''}
+    : `<span class="muted">${fmt.esc(t(RUNTIME_INFO_FIELD_ABSENT.defaults))}</span>`;
+  return `<div style="margin-top:8px"><b>${t('o.rtInfo.selfHeading')}</b> <span class="muted" style="font-size:12px">${t('o.rtInfo.selfHeadingSub')}</span>${v.driftNote ? ` <span class="badge warn" title="${fmt.esc(v.driftDigests.map(d => d.slice(0, 12)).join(' · '))}">${fmt.esc(t(v.driftNote))}</span>` : ''}
     <div class="diag muted" style="margin-top:4px">${fmt.esc(v.name ?? '—')}${v.version ? ` <span class="badge">v${fmt.esc(v.version)}</span>` : ''}</div>
     <div class="diag" style="margin-top:4px"><span class="muted">system prompt:</span> ${spLine}</div>
     <div class="diag" style="margin-top:4px"><span class="muted">tools:</span> ${toolsLine}</div>
@@ -1600,7 +1762,7 @@ function contextInsightsPanel(ci) {
 // Consumes OBS.buildExpStatsCard(e) (pure view model). Copy is zh-hans plain language; the original
 // term rides in a trailing (括号) or a dotted-underline tooltip. Governance-neutral: sequence cards
 // are ALWAYS 未验证假说 with no adopt affordance.
-function gEx(labelHtml, key) { const g = EXP_GLOSSARY[key]; return g ? term(labelHtml, g) : labelHtml; }
+function gEx(labelHtml, key) { const g = EXP_GLOSSARY[key]; return g ? term(labelHtml, t(g)) : labelHtml; }
 function expStatsPanel(e) {
   const stCard = buildExpStatsCard(e);   // NOT named `card` — that would shadow the card() helper
   // resolver warnings (wrapper warnings passed through verbatim + corrupt-sidecar degrade notes)
@@ -1617,25 +1779,25 @@ function expStatsPanel(e) {
   const authBadge = stCard.authorityBadge ? ` <span class="badge ${stCard.authorityBadge.tone === 'ok' ? 'ok' : 'warn'}" title="${fmt.esc(stCard.authority ?? '')}">${fmt.esc(t(stCard.authorityBadge.word))}</span>` : '';
   // Stage 4 provenance badge: stats.provenance 'adapter-reported' → 自报信号披露; absent/observed → no badge
   const provBadge = stCard.provenanceBadge ? ` <span class="badge ${stCard.provenanceBadge.tone === 'ok' ? 'ok' : 'warn'}" title="stats.provenance: ${fmt.esc(stCard.provenance ?? '')}">${fmt.esc(t(stCard.provenanceBadge.word))}</span>` : '';
-  let h = `<div class="panel"><h3>${t('o.cov.panelTitle')}${authBadge}${provBadge} <span class="muted" style="font-size:12px">${gEx(t('o.gloss.cliSink'), 'cliSink')} ${t('o.cov.signal')}</span></h3>`;
+  let h = `<div class="panel"><h3>${t('o.cov.panelTitle')}${authBadge}${provBadge} <span class="muted" style="font-size:12px">${gEx(t('o.label.cliSink'), 'cliSink')} ${t('o.cov.signal')}</span></h3>`;
   h += warnHtml;
   // sidecarIgnored 语义（taxonomy §3.0 窄化）：权威数字未采用 sidecar——有 supplemental 时两者并存
   if (stCard.sidecarIgnored) h += `<div class="muted" style="font-size:12px">ⓘ ${stCard.supplementalSections
-    ? '重算 sidecar 未被权威数字采用——其新增统计节以非权威补算并列展示（见下）'
-    : '存在被忽略的重算 sidecar（CLI 诊断用）——封存实验以内嵌统计为准'}</div>`;
+    ? t('o.stats.sidecarSupplemental')
+    : t('o.stats.sidecarIgnored')}</div>`;
   // taxonomy §3.0 supplemental：独立块 + 独立「回填（非权威）」徽章——绝不挂在权威徽章下、绝不并进权威数字
   if (stCard.supplementalSections) {
     const supBadge = stCard.supplementalBadge ? ` <span class="badge warn">${fmt.esc(t(stCard.supplementalBadge.word))}</span>` : '';
     const supKeys = Object.keys(stCard.supplementalSections).map(k => `<code>${fmt.esc(k)}</code>`).join(' · ');
-    h += `<div style="margin:8px 0 4px"><b>补算统计节</b>${supBadge} <span class="muted" style="font-size:12px">schema v${fmt.esc(String(stCard.supplementalSchema?.from ?? '—'))} → v${fmt.esc(String(stCard.supplementalSchema?.to ?? '—'))}——封存数字不变，以下新增节为非权威补算</span></div>`;
+    h += `<div style="margin:8px 0 4px"><b>${t('o.stats.supplementalTitle')}</b>${supBadge} <span class="muted" style="font-size:12px">${tf('o.stats.supplementalNote', { from: fmt.esc(String(stCard.supplementalSchema?.from ?? '—')), to: fmt.esc(String(stCard.supplementalSchema?.to ?? '—')) })}</span></div>`;
     h += `<div class="muted" style="font-size:12px">${supKeys}</div>`;
   }
-  h += `<div class="cards">${card(String(ss.nCoverageValid), gEx('有效样本 n', 'nCoverageValid'))}</div>`;
+  h += `<div class="cards">${card(String(ss.nCoverageValid), gEx(t('o.stats.nValid'), 'nCoverageValid'))}</div>`;
   h += `<div class="muted" style="font-size:12px;margin:4px 0 10px">${fmt.esc(t(ss.note))} · ${t('o.stats.breakdown')}：${t('o.stats.bd.valid')} ${bd.valid} / ${t('o.stats.bd.excluded')} ${bd.excluded} / ${t('o.stats.bd.heldOut')} ${bd.heldOut} / ${t('o.stats.bd.noSession')} ${bd.noSession} / ${t('o.stats.bd.unresolved')} ${bd.unresolved}</div>`;
   // M1 skill coverage
   const sc = stCard.skillCoverage;
   if (sc) {
-    h += `<div style="margin:8px 0 4px"><b>触发覆盖</b> <span class="muted">${sc.triggered}/${sc.installed}${sc.coverageRatio == null ? '' : ' = ' + fmt.pct(sc.coverageRatio)}</span></div>`;
+    h += `<div style="margin:8px 0 4px"><b>${t('o.cov.triggerCoverage')}</b> <span class="muted">${sc.triggered}/${sc.installed}${sc.coverageRatio == null ? '' : ' = ' + fmt.pct(sc.coverageRatio)}</span></div>`;
     if (sc.neverTriggered.skills.length) h += `<div class="muted" style="font-size:12px">${term(t('o.cov.neverTriggered.label'), t(sc.neverTriggered.hint))}：${sc.neverTriggered.skills.map(x => `<span class="badge warn">${fmt.esc(x)}</span>`).join(' ')}</div>`;
     if (sc.notExercised.skills.length) h += `<div class="muted" style="font-size:12px">${term(t('o.cov.notExercised.label'), t(sc.notExercised.hint))}：${sc.notExercised.skills.map(x => `<span class="badge">${fmt.esc(x)}</span>`).join(' ')}</div>`;
   }
@@ -1646,46 +1808,42 @@ function expStatsPanel(e) {
   // M2 reference coverage + three exemption buckets (bySkill=null → reason, NEVER 读到 0/0)
   const rc = stCard.refCoverage;
   if (rc && rc.unknown) {
-    h += `<div style="margin:10px 0 4px"><b>参考文档读取</b></div>`;
-    h += `<div class="muted" style="font-size:12px">${rc.reason === 'external-runtime-self-managed'
-      ? '外部运行时自管 skills，无参考文档清单可核对（external-runtime-self-managed）'
-      : '无清单快照，参考文档读取不可知（no-inventory-snapshot）'}</div>`;
+    h += `<div style="margin:10px 0 4px"><b>${t('o.ref.heading')}</b></div>`;
+    h += `<div class="muted" style="font-size:12px">${rc.reason === 'external-runtime-self-managed' ? t('o.ref.extSelfManaged') : t('o.ref.noSnapshot')}</div>`;
   } else if (rc) {
-    // 分母文案四态: snapshot（无注记）· adapter-declared（可知分母 + 自报徽章）·
-    // none-backfill（shipped null → 清单不可知注记）· external-runtime（走上方 unknown 分支）
     const declaredInv = rc.inventoryStatus === 'adapter-declared';
-    const invBadge = declaredInv ? ` <span class="badge warn" title="inventoryStatus: adapter-declared">清单由 adapter 自报（未经 harness 快照核验）</span>` : '';
-    h += `<div style="margin:10px 0 4px"><b>参考文档读取</b> <span class="muted">读到 ${rc.read}/${rc.shipped == null ? '—' : rc.shipped}${rc.shipped == null ? '（清单不可知，仅观测到的读取——no-inventory-snapshot）' : ''}</span>${invBadge}</div>`;
-    if (declaredInv && rc.outOfInventoryReads) h += `<div class="muted" style="font-size:12px">另有 ${rc.outOfInventoryReads} 笔清单外读取（自报）——读到的文档不在自报清单内</div>`;
-    if (rc.sharedReads) h += `<div class="muted" style="font-size:12px">其中 ${rc.sharedReads} 份为共享文档（_shared），无法归属到具体 skill（shared-hash-namespace）</div>`;
-    if (rc.unreadRefs.length) h += `<div class="muted" style="font-size:12px">未读（死重候选）：${rc.unreadRefs.map(u => `<code>${fmt.esc(u.ref)}</code>`).join(' · ')}</div>`;
+    const invBadge = declaredInv ? ` <span class="badge warn" title="inventoryStatus: adapter-declared">${t('o.ref.adapterDeclaredBadge')}</span>` : '';
+    h += `<div style="margin:10px 0 4px"><b>${t('o.ref.heading')}</b> <span class="muted">${tf('o.ref.readCount', { read: rc.read, shipped: rc.shipped == null ? '—' : rc.shipped })}${rc.shipped == null ? t('o.ref.noInvNote') : ''}</span>${invBadge}</div>`;
+    if (declaredInv && rc.outOfInventoryReads) h += `<div class="muted" style="font-size:12px">${tf('o.ref.outOfInv', { n: rc.outOfInventoryReads })}</div>`;
+    if (rc.sharedReads) h += `<div class="muted" style="font-size:12px">${tf('o.ref.sharedReads', { n: rc.sharedReads })}</div>`;
+    if (rc.unreadRefs.length) h += `<div class="muted" style="font-size:12px">${t('o.ref.unread')}${rc.unreadRefs.map(u => `<code>${fmt.esc(u.ref)}</code>`).join(' · ')}</div>`;
     const ex = rc.exemptions;
     const buckets = [];
     if (ex.artifactOnly.refs.length) buckets.push(`${term(t('o.cov.exempt.artifactOnly.label'), t(ex.artifactOnly.hint))} ${ex.artifactOnly.refs.length}`);
     if (ex.excludedOnly.refs.length) buckets.push(`${term(t('o.cov.exempt.excludedOnly.label'), t(ex.excludedOnly.hint))} ${ex.excludedOnly.refs.length}`);
     if (ex.notExercised.skills.length) buckets.push(`${term(t('o.cov.exempt.notExercised.label'), t(ex.notExercised.hint))} ${ex.notExercised.skills.length}`);
-    if (buckets.length) h += `<div class="muted" style="font-size:12px">判死重前已豁免：${buckets.join(' · ')}</div>`;
+    if (buckets.length) h += `<div class="muted" style="font-size:12px">${t('o.ref.exemptedBefore')}${buckets.join(' · ')}</div>`;
   }
   // M3-M5 probe signals (three-state) + M7 proximity
   const cli = stCard.probes;
   if (!cli || !cli.configured) {
-    h += `<div class="muted" style="font-size:12px;margin-top:10px">未配置外部工具探针（stats.probes = null）</div>`;
+    h += `<div class="muted" style="font-size:12px;margin-top:10px">${t('o.probe.notConfigured')}</div>`;
   } else {
     for (const tl of cli.tools) {
       const cov = tl.coverage;
-      h += `<div style="margin:10px 0 4px"><b>${gEx('命令面覆盖', 'commandSurface')}</b> <span class="badge ${cov?.status === 'suspect' ? 'err' : cov?.status === 'unavailable' ? 'warn' : 'ok'}">${fmt.esc(t(tl.coverageStatus.word))}</span> <code>${fmt.esc(tl.tool)}</code></div>`;
+      h += `<div style="margin:10px 0 4px"><b>${gEx(t('o.cov.commandSurface'), 'commandSurface')}</b> <span class="badge ${cov?.status === 'suspect' ? 'err' : cov?.status === 'unavailable' ? 'warn' : 'ok'}">${fmt.esc(t(tl.coverageStatus.word))}</span> <code>${fmt.esc(tl.tool)}</code></div>`;
       if (cov && cov.status !== 'unavailable') {
-        h += `<div class="muted" style="font-size:12px">${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}${cov.unused.length ? ' · 从未用到 ' + cov.unused.join(', ') : ''}${cov.undeclaredInvoked.length ? ' · 命令面漂移 ' + cov.undeclaredInvoked.join(', ') : ''}</div>`;
+        h += `<div class="muted" style="font-size:12px">${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}${cov.unused.length ? tf('o.probe.neverUsed', { list: cov.unused.join(', ') }) : ''}${cov.undeclaredInvoked.length ? tf('o.probe.surfaceDrift', { list: cov.undeclaredInvoked.join(', ') }) : ''}</div>`;
       }
       for (const sq of tl.sequences) {
-        h += `<div class="muted" style="font-size:12px">${term('未验证假说', EXP_GLOSSARY.hypothesisSeq)}：命令连发 ${fmt.esc(sq.seq.join(' → '))}（${sq.distinctCases} 个不同题目）${sq.knownCollapse ? ' · 注记：或可用 <code>' + fmt.esc(sq.knownCollapse) + '</code>' : ''}</div>`;
+        h += `<div class="muted" style="font-size:12px">${term(t('o.gloss.hypothesisSeqLabel'), t(EXP_GLOSSARY.hypothesisSeq))}${tf('o.seq.body', { seq: fmt.esc(sq.seq.join(' → ')), cases: sq.distinctCases })}${sq.knownCollapse ? tf('o.seq.collapse', { cmd: fmt.esc(sq.knownCollapse) }) : ''}</div>`;
       }
     }
   }
   const px = stCard.proximity;
   if (px) {
-    h += `<div style="margin:10px 0 4px"><b>${gEx('关联强度', 'proximityStrength')}</b> <span class="muted">时序邻近，非因果 · n=${px.n}</span></div>`;
-    h += `<table><thead><tr><th>前 → 后</th><th>紧邻度</th><th>置信</th><th>lift</th><th>n</th></tr></thead><tbody>`;
+    h += `<div style="margin:10px 0 4px"><b>${gEx(t('o.label.proximity'), 'proximityStrength')}</b> <span class="muted">${tf('o.proximity.sub', { n: px.n })}</span></div>`;
+    h += `<table><thead><tr><th>${t('o.proximity.colEdge')}</th><th>${t('o.proximity.colCloseness')}</th><th>${t('o.proximity.colConfidence')}</th><th>lift</th><th>n</th></tr></thead><tbody>`;
     for (const ed of px.topEdges) h += `<tr><td><code>${fmt.esc(ed.from.type + ':' + ed.from.id)}</code> → <code>${fmt.esc(ed.to.type + ':' + ed.to.id)}</code></td><td>${ed.closeness}</td><td>${ed.confidence == null ? '—' : ed.confidence}</td><td>${ed.lift == null ? '—' : ed.lift}</td><td>${ed.pairCases}</td></tr>`;
     h += `</tbody></table>`;
   }
@@ -1701,37 +1859,37 @@ function expSkillDetailHtml(row) {
   let body = '';
   // refs 明细 (schemaVersion 2): bytes | 读到题数 | 共同触发读取率 x/y | blocked badge
   if (row.refsNote === 'external-runtime-self-managed') {
-    body += `<div class="muted" style="font-size:12px">外部运行时自管（external-runtime-self-managed）——参考文档清单不可知</div>`;
+    body += `<div class="muted" style="font-size:12px">${t('o.ref.rowExtSelfManaged')}</div>`;
   } else if (row.refsNote === 'no-inventory-snapshot') {
-    body += `<div class="muted" style="font-size:12px">无快照（no-inventory-snapshot）——仅能显示观测到的读取，此 skill 未观测到任何读取</div>`;
+    body += `<div class="muted" style="font-size:12px">${t('o.ref.rowNoSnapshot')}</div>`;
   } else if (row.refsNote === 'adapter-declared') {
-    body += `<div class="muted" style="font-size:12px">清单由 adapter 自报（adapter-declared）——该 skill 不在自报清单内，无参考文档行可核对</div>`;
+    body += `<div class="muted" style="font-size:12px">${t('o.ref.rowAdapterDeclared')}</div>`;
   } else if (row.refs && row.refs.length) {
-    body += `<table><thead><tr><th>参考文档（ref）</th><th>字节（bytes）</th><th>读到题数（readsCases）</th><th>${term('触发时读取率（readRateCoTriggered）', '同一道题里该 skill 触发且这份参考文档被读到的题数 / 该 skill 触发过的题数（皆按不同题目计）')}</th><th></th></tr></thead><tbody>`;
+    body += `<table><thead><tr><th>${t('o.ref.colRef')}</th><th>${t('o.ref.colBytes')}</th><th>${t('o.ref.colReadsCases')}</th><th>${term(t('o.ref.colReadRate'), t('o.ref.colReadRateTip'))}</th><th></th></tr></thead><tbody>`;
     for (const r of row.refs) {
-      body += `<tr><td><code>${fmt.esc(r.ref)}</code></td><td>${r.bytes == null ? (r.reason === 'shared-hash-namespace' ? term('—', '共享文档的运行期名字带内容哈希，封存时无法对上字节数（内部名 shared-hash-namespace）') : r.reason === 'adapter-declared' ? term('—', '清单由 adapter 自报，无 harness 快照，字节数不可知（内部名 adapter-declared）') : '—') : fmt.n(r.bytes)}</td><td>${r.readsCases}</td><td>${xy(r.readRateCoTriggered.x, r.readRateCoTriggered.y)}</td><td>${r.blocked ? '<span class="badge err">读取被权限拦截</span>' : ''}</td></tr>`;
+      body += `<tr><td><code>${fmt.esc(r.ref)}</code></td><td>${r.bytes == null ? (r.reason === 'shared-hash-namespace' ? term('—', t('o.ref.sharedHashTip')) : r.reason === 'adapter-declared' ? term('—', t('o.ref.adapterDeclaredTip')) : '—') : fmt.n(r.bytes)}</td><td>${r.readsCases}</td><td>${xy(r.readRateCoTriggered.x, r.readRateCoTriggered.y)}</td><td>${r.blocked ? `<span class="badge err">${t('o.ref.blocked')}</span>` : ''}</td></tr>`;
     }
     body += `</tbody></table>`;
   } else if (row.refs) {
-    body += `<div class="muted" style="font-size:12px">无参考文档（可知且为空）</div>`;
+    body += `<div class="muted" style="font-size:12px">${t('o.ref.emptyKnown')}</div>`;
   }
   // B6 miss 清单: triggered=0 cases — 行动语义: 修 expected skill 触发描述 / 收窄 firedInstead skill 触发面
   if (row.misses) {
-    body += `<div style="margin:8px 0 2px"><b>未命中题目（miss）</b> <span class="muted" style="font-size:12px">修这个 skill 的触发描述，或收窄实际抢答 skill 的触发面</span></div>`;
+    body += `<div style="margin:8px 0 2px"><b>${t('o.miss.heading')}</b> <span class="muted" style="font-size:12px">${t('o.miss.hint')}</span></div>`;
     for (const m of row.misses) {
       const fired = m.firedInstead == null
-        ? `<span class="muted">无 session 可判</span>`
+        ? `<span class="muted">${t('o.miss.noSession')}</span>`
         : m.firedInstead.length
-          ? `实际触发（firedInstead）：${m.firedInstead.map(s => `<span class="badge warn">${fmt.esc(s)}</span>`).join(' ')}`
-          : `<span class="muted">未触发任何 skill（可知且为空）</span>`;
+          ? `${t('o.miss.firedInstead')}${m.firedInstead.map(s => `<span class="badge warn">${fmt.esc(s)}</span>`).join(' ')}`
+          : `<span class="muted">${t('o.miss.firedNone')}</span>`;
       body += `<div class="muted" style="font-size:12px"><code>${fmt.esc(m.caseId)}</code> · ${fired}</div>`;
     }
   } else if (row.missNote === 'partial-trigger-only') {
-    body += `<div class="muted" style="font-size:12px;margin-top:8px">miss 均为部分触发（同题其他 rep 已命中），无整题落空</div>`;
+    body += `<div class="muted" style="font-size:12px;margin-top:8px">${t('o.miss.partialTrigger')}</div>`;
   }
   if (!body) return '';   // nothing knowable to expand → no empty details row
   return `<details data-persist="expstats-skill" style="margin:4px 0">
-    <summary style="cursor:pointer"><span class="badge skill">${fmt.esc(row.skill)}</span> <span class="muted" style="font-size:12px">触发率（triggerRate）${trigTxt}</span></summary>
+    <summary style="cursor:pointer"><span class="badge skill">${fmt.esc(row.skill)}</span> <span class="muted" style="font-size:12px">${t('o.skill.triggerRate')}${trigTxt}</span></summary>
     <div style="margin:6px 0 4px 12px">${body}</div>
   </details>`;
 }
@@ -1770,20 +1928,20 @@ function runObsPanel(e) {
   const ccV = cc ? contextCompositionView(cc.section, { nonAuthoritative: cc.nonAuthoritative }) : null;
   const tuV = tu ? toolUsageView(tu.section, { nonAuthoritative: tu.nonAuthoritative }) : null;
   const ftV = ft ? fileTargetsView(ft.section, { nonAuthoritative: ft.nonAuthoritative }) : null;
-  let h = `<div class="panel"><h3>运行观测 <span class="muted" style="font-size:12px">context 组成 + 工具使用（contextComposition · toolUsage · fileTargets）</span></h3>`;
+  let h = `<div class="panel"><h3>${t('o.runObs.title')} <span class="muted" style="font-size:12px">${t('o.runObs.titleSub')}</span></h3>`;
   // §3.1 contextComposition — 增量归因视角（copy ban: never a cost view）
   if (ccV) {
     h += `<div style="margin:8px 0 4px"><b>${fmt.esc(t(ccV.title ?? CONTEXT_COMPOSITION_TITLE))}</b>${!ccV.null && ccV.estimate ? ` <span class="badge warn">${t('o.badge.estimate')}</span>` : ''}${supBadge(ccV.nonAuthoritative)}</div>`;
     if (ccV.null) h += nullReasonLine(ccV);
     else {
-      h += `<table><thead><tr><th>组成桶</th><th>占比（均值）</th><th>范围（min–max）</th></tr></thead><tbody>`;
+      h += `<table><thead><tr><th>${t('o.ctxComp.colBucket')}</th><th>${t('o.ctxComp.colShare')}</th><th>${t('o.ctxComp.colRange')}</th></tr></thead><tbody>`;
       for (const row of ccV.rows) h += `<tr><td>${fmt.esc(t(row.label))}</td><td>${row.share == null ? '—' : fmt.pct(row.share.mean)}</td><td class="muted">${row.share == null ? '—' : fmt.pct(row.share.min) + '–' + fmt.pct(row.share.max)}</td></tr>`;
       h += `</tbody></table>`;
       const cp = ccV.compaction;
       h += `<div class="muted" style="font-size:12px;margin-top:4px">${fmt.esc(t(cp.label))}：${cp.runsWithCompaction > 0
-        ? `${cp.runsWithCompaction} 个 run 出现 · 绝对量均值 ≈ ${fmt.n(cp.absolute?.mean)} tokens · 相对分母均值 ${fmt.pct(cp.shareOfDenominator?.mean ?? 0)}`
-        : '未观测到压缩'}</div>`;
-      h += `<div class="muted" style="font-size:12px">n=${ccV.n}${ccV.untaggedLegacyRuns ? ` · 跳过未标记旧 run ${ccV.untaggedLegacyRuns}` : ''}${ccV.zeroFootprintRuns ? ` · 跳过零 footprint run ${ccV.zeroFootprintRuns}` : ''}${ccV.skippedRounds ? ` · 跳过零 footprint 轮 ${ccV.skippedRounds}` : ''}${ccV.peakFootprint ? ` · 峰值 footprint 均值 ${fmt.n(Math.round(ccV.peakFootprint.mean))}` : ''}${ccV.maxContribution ? ` · 最大贡献 run <code>${fmt.esc(String(ccV.maxContribution.runId ?? '—'))}</code>` : ''}</div>`;
+        ? tf('o.ctxComp.compactionBody', { n: cp.runsWithCompaction, abs: fmt.n(cp.absolute?.mean), share: fmt.pct(cp.shareOfDenominator?.mean ?? 0) })
+        : t('o.ctxComp.noCompaction')}</div>`;
+      h += `<div class="muted" style="font-size:12px">n=${ccV.n}${ccV.untaggedLegacyRuns ? tf('o.ctxComp.skipUntagged', { n: ccV.untaggedLegacyRuns }) : ''}${ccV.zeroFootprintRuns ? tf('o.ctxComp.skipZeroRun', { n: ccV.zeroFootprintRuns }) : ''}${ccV.skippedRounds ? tf('o.ctxComp.skipZeroRound', { n: ccV.skippedRounds }) : ''}${ccV.peakFootprint ? tf('o.ctxComp.peakFootprint', { v: fmt.n(Math.round(ccV.peakFootprint.mean)) }) : ''}${ccV.maxContribution ? tf('o.ctxComp.maxContrib', { run: fmt.esc(String(ccV.maxContribution.runId ?? '—')) }) : ''}</div>`;
     }
   }
   // §3.2 toolUsage — byKind main/sidechain split + MCP server table + top tools
@@ -1791,29 +1949,29 @@ function runObsPanel(e) {
     h += `<div style="margin:12px 0 4px"><b>${fmt.esc(t(tuV.title ?? TOOL_USAGE_TITLE))}</b>${supBadge(tuV.nonAuthoritative)}</div>`;
     if (tuV.null) h += nullReasonLine(tuV);
     else {
-      h += `<table><thead><tr><th>类别（kind）</th><th>主链（main）</th><th>子代理（sidechain）</th><th>合计</th></tr></thead><tbody>`;
+      h += `<table><thead><tr><th>${t('o.tool.colKind')}</th><th>${t('o.tool.colMain')}</th><th>${t('o.tool.colSidechain')}</th><th>${t('o.tool.colTotal')}</th></tr></thead><tbody>`;
       for (const k of tuV.byKind) h += `<tr><td><code>${fmt.esc(k.kind)}</code></td><td>${fmt.n(k.main)}</td><td>${fmt.n(k.sidechain)}</td><td>${fmt.n(k.total)}</td></tr>`;
       h += `</tbody></table>`;
       h += `<div class="muted" style="font-size:12px">${fmt.esc(t(tuV.scopeNote))} · ${fmt.esc(t(tuV.kindSourceNote))}：${tuV.kindSource.declared}/${tuV.kindSource.inferred}${tuV.allowlistVersion ? ` · ${fmt.esc(t(tuV.allowlistNote))}：<code>${fmt.esc(tuV.allowlistVersion)}</code>` : ''}</div>`;
       if (tuV.mcpServers.length) {
-        h += `<div style="margin:6px 0 2px"><b>MCP server 切分</b></div><table><thead><tr><th>server</th><th>调用（calls）</th><th>错误（errors）</th><th>权限拒绝（denials）</th></tr></thead><tbody>`;
+        h += `<div style="margin:6px 0 2px"><b>${t('o.tool.mcpSplit')}</b></div><table><thead><tr><th>server</th><th>${t('o.tool.calls')}</th><th>${t('o.tool.errors')}</th><th>${t('o.tool.denials')}</th></tr></thead><tbody>`;
         for (const m of tuV.mcpServers) h += `<tr><td><code>${fmt.esc(m.server)}</code></td><td>${fmt.n(m.calls)}</td><td>${fmt.n(m.errors)}</td><td>${fmt.n(m.denials)}</td></tr>`;
         h += `</tbody></table>`;
       }
-      if (tuV.topTools.length) h += `<div class="muted" style="font-size:12px">高频工具（topTools）：${tuV.topTools.map(tl => `<code>${fmt.esc(tl.name)}</code> ${fmt.n(tl.calls)}${tl.errors ? `（错 ${tl.errors}）` : ''}${tl.denials ? `（拒 ${tl.denials}）` : ''}`).join(' · ')}</div>`;
+      if (tuV.topTools.length) h += `<div class="muted" style="font-size:12px">${t('o.tool.topTools')}${tuV.topTools.map(tl => `<code>${fmt.esc(tl.name)}</code> ${fmt.n(tl.calls)}${tl.errors ? tf('o.tool.errN', { n: tl.errors }) : ''}${tl.denials ? tf('o.tool.denN', { n: tl.denials }) : ''}`).join(' · ')}</div>`;
     }
   }
   // §3.4 fileTargets — folded into the tool-usage card（skill 没被读时在读什么/改了什么）
   if (ftV) {
-    h += `<div style="margin:12px 0 4px"><b>${fmt.esc(ftV.title ?? FILE_TARGETS_TITLE)}</b>${supBadge(ftV.nonAuthoritative)}</div>`;
+    h += `<div style="margin:12px 0 4px"><b>${fmt.esc(t(ftV.title ?? FILE_TARGETS_TITLE))}</b>${supBadge(ftV.nonAuthoritative)}</div>`;
     if (ftV.null) h += nullReasonLine(ftV);
     else {
-      h += `<table><thead><tr><th></th>${ftV.reads.rows.map(r => `<th>${fmt.esc(r.label)}</th>`).join('')}<th>无路径（pathless）</th></tr></thead><tbody>`;
+      h += `<table><thead><tr><th></th>${ftV.reads.rows.map(r => `<th>${fmt.esc(t(r.label))}</th>`).join('')}<th>${t('o.fileTargets.pathless')}</th></tr></thead><tbody>`;
       const sideRow = (label, s) => `<tr><td>${label}</td>${s.rows.map(r => `<td>${fmt.n(r.count)}</td>`).join('')}<td>${fmt.n(s.pathless)}</td></tr>`;
-      h += sideRow('读（Read）', ftV.reads);
-      h += sideRow('写（Write/Edit/NotebookEdit/MultiEdit）', ftV.writes);
+      h += sideRow(t('o.fileTargets.read'), ftV.reads);
+      h += sideRow(t('o.fileTargets.write'), ftV.writes);
       h += `</tbody></table>`;
-      h += `<div class="muted" style="font-size:12px">${fmt.esc(ftV.pathlessNote)} · n=${ftV.n}${ftV.noCwdRuns ? ` · 跳过无 cwd run ${ftV.noCwdRuns}` : ''}</div>`;
+      h += `<div class="muted" style="font-size:12px">${fmt.esc(t(ftV.pathlessNote))} · n=${ftV.n}${ftV.noCwdRuns ? tf('o.fileTargets.noCwd', { n: ftV.noCwdRuns }) : ''}</div>`;
     }
   }
   return h + `</div>`;
@@ -1835,39 +1993,41 @@ function runHealthPanel(e) {
   const estimatedCostUsd = estTasks.length ? estTasks.reduce((a, tk) => a + tk.efficiency.meanCostUsd * tk.n, 0) : null;
   const v = runHealthView(sections, { nonAuthoritative, estimatedCostUsd });
   if (v.empty) return '';
-  let h = `<div class="panel"><h3>运行健康 <span class="muted" style="font-size:12px">cache · 截断 · 子代理 · 自报成本 · 异常（cacheHitRate · truncation · sidechainShare · selfReport · statsHealth）</span></h3>`;
-  const seg = (heading, sv, body) => {
+  let h = `<div class="panel"><h3>${t('o.runHealth.title')} <span class="muted" style="font-size:12px">${t('o.runHealth.titleSub')}</span></h3>`;
+  // heading uses an explicit label key so it works for null segments too (nullSectionView has no .label)
+  const seg = (labelKey, sv, body) => {
     if (!sv) return '';
-    return `<div style="margin:10px 0 4px"><b>${heading}</b>${supBadge(sv.nonAuthoritative)}</div>` + (sv.null ? nullReasonLine(sv) : body(sv));
+    return `<div style="margin:10px 0 4px"><b>${t(labelKey)}</b>${supBadge(sv.nonAuthoritative)}</div>` + (sv.null ? nullReasonLine(sv) : body(sv));
   };
-  h += seg('cache 命中率（cacheHitRate）', v.cache, (s) => {
-    let b = `<div class="muted" style="font-size:12px">逐轮 cacheR/footprint 的 run 均值：${fmt.pct(s.mean)}（${fmt.pct(s.min)}–${fmt.pct(s.max)}）· n=${s.n}${s.skippedRounds ? ` · 跳过无用量/零 footprint 轮 ${s.skippedRounds}` : ''}</div>`;
+  h += seg('o.runHealth.cache', v.cache, (s) => {
+    let b = `<div class="muted" style="font-size:12px">${tf('o.runHealth.cacheBody', { mean: fmt.pct(s.mean), min: fmt.pct(s.min), max: fmt.pct(s.max), n: s.n })}${s.skippedRounds ? tf('o.runHealth.cacheSkipped', { n: s.skippedRounds }) : ''}</div>`;
     if (s.byRepeat.length > 1) {
-      b += `<table><thead><tr><th>repeat 序</th><th>cache 命中率均值</th><th>n</th></tr></thead><tbody>`;
+      b += `<table><thead><tr><th>${t('o.runHealth.colRepeat')}</th><th>${t('o.runHealth.colMeanCache')}</th><th>n</th></tr></thead><tbody>`;
       for (const r of s.byRepeat) b += `<tr><td>${r.repeat}</td><td>${fmt.pct(r.meanCacheR)}</td><td>${r.n}</td></tr>`;
-      b += `</tbody></table><div class="muted" style="font-size:12px">${fmt.esc(s.byRepeatNote)}</div>`;
+      b += `</tbody></table><div class="muted" style="font-size:12px">${t(s.byRepeatNote)}</div>`;
     }
     return b;
   });
-  h += seg('输出截断（truncation）', v.truncation, (s) => {
+  h += seg('o.runHealth.truncation', v.truncation, (s) => {
     const fr = s.finalRoundTruncated;
-    let b = `<div class="muted" style="font-size:12px">截断轮占比 ${fmt.pct(s.truncatedRoundShare)}（分母 ${s.rounds} 轮）· 末轮截断 run ${fr ? `${fr.runs}/${fr.n}${fr.share == null ? '（0/0 不可知）' : ''}` : '—'}${s.unknownStopReason ? ` · 无 stop reason 轮 ${s.unknownStopReason}——${fmt.esc(s.unknownNote)}` : ''}${s.unknownFinalRuns ? ` · 末轮不可判 run ${s.unknownFinalRuns}` : ''}</div>`;
-    if (s.byReason.length) b += `<div class="muted" style="font-size:12px">stopReason 分布：${s.byReason.map(r => `<code>${fmt.esc(r.reason)}</code> ${r.count}`).join(' · ')}</div>`;
+    const finalTxt = fr ? `${fr.runs}/${fr.n}${fr.share == null ? t('o.runHealth.zeroUnknown') : ''}` : '—';
+    let b = `<div class="muted" style="font-size:12px">${tf('o.runHealth.truncBody', { share: fmt.pct(s.truncatedRoundShare), rounds: s.rounds, final: finalTxt })}${s.unknownStopReason ? tf('o.runHealth.truncUnknownStop', { n: s.unknownStopReason }) + t(s.unknownNote) : ''}${s.unknownFinalRuns ? tf('o.runHealth.truncUnknownFinal', { n: s.unknownFinalRuns }) : ''}</div>`;
+    if (s.byReason.length) b += `<div class="muted" style="font-size:12px">${t('o.runHealth.stopDist')}${s.byReason.map(r => `<code>${fmt.esc(r.reason)}</code> ${r.count}`).join(' · ')}</div>`;
     return b;
   });
-  h += seg('子代理份额（sidechainShare）', v.sidechain, (s) => {
-    const sh = (t) => t == null || t.share == null ? '—（0/0 不可知）' : fmt.pct(t.share);
-    return `<div class="muted" style="font-size:12px">tokens ${sh(s.tokens)} · 工具调用 ${sh(s.toolCalls)} · 开销量级（equivTokens）${sh(s.equivTokens)} · 含子代理 run ${s.runsWithSidechain}/${s.n}<br>${fmt.esc(s.equivNote)}</div>`;
+  h += seg('o.runHealth.sidechain', v.sidechain, (s) => {
+    const sh = (x) => x == null || x.share == null ? t('o.runHealth.unknownShare') : fmt.pct(x.share);
+    return `<div class="muted" style="font-size:12px">${tf('o.runHealth.sidechainBody', { tokens: sh(s.tokens), tools: sh(s.toolCalls), equiv: sh(s.equivTokens), withSc: s.runsWithSidechain, n: s.n })}<br>${t(s.equivNote)}</div>`;
   });
-  h += seg('自报成本（selfReport）', v.selfReport, (s) =>
-    `<div class="muted" style="font-size:12px">自报 Σ ${s.totalCostUsd == null ? '—' : fmt.usd(s.totalCostUsd)}（${s.runsWithSelfReport} run · ${s.invocations} 次 result 行）vs 估算 ${s.estimatedCostUsd == null ? '—（不可得）' : '≈ ' + fmt.usd(s.estimatedCostUsd)}${s.numTurns != null ? ` · 自报轮数 Σ ${fmt.n(s.numTurns)}` : ''}${s.durationMs != null ? ` · 自报耗时 Σ ${fmt.ms(s.durationMs)}` : ''}${s.isError ? ' · <span class="badge err">含自报错误（is_error）</span>' : ''}<br>${fmt.esc(s.caliberNote)}</div>`);
-  h += seg('观测管线健康（statsHealth）', v.statsHealth, (s) => {
+  h += seg('o.runHealth.selfReport', v.selfReport, (s) =>
+    `<div class="muted" style="font-size:12px">${tf('o.runHealth.selfBody', { self: s.totalCostUsd == null ? '—' : fmt.usd(s.totalCostUsd), runs: s.runsWithSelfReport, inv: s.invocations, est: s.estimatedCostUsd == null ? t('o.runHealth.notAvail') : '≈ ' + fmt.usd(s.estimatedCostUsd) })}${s.numTurns != null ? tf('o.runHealth.selfTurns', { n: fmt.n(s.numTurns) }) : ''}${s.durationMs != null ? tf('o.runHealth.selfDur', { d: fmt.ms(s.durationMs) }) : ''}${s.isError ? ` · <span class="badge err">${t('o.runHealth.selfError')}</span>` : ''}<br>${t(s.caliberNote)}</div>`);
+  h += seg('o.runHealth.statsHealth', v.statsHealth, (s) => {
     const tr = s.timeoutRate;
-    let b = `<div class="muted" style="font-size:12px">排除分布（exclusionBreakdown）：${s.exclusions.length ? s.exclusions.map(x => `<code>${fmt.esc(x.signature)}</code> ${x.count}`).join(' · ') : '无（可知且为空）'}</div>`;
-    b += `<div class="muted" style="font-size:12px">超时率（timeoutRate）：${tr ? (tr.rate == null ? '—（无可知分母）' : `${fmt.pct(tr.rate)}（${tr.timedOut}/${tr.n}）`) + (tr.legacyUnknown ? `，另有 legacy 不可知 ${tr.legacyUnknown}——${fmt.esc(s.timeoutLegacyNote)}` : '') : '—'}</div>`;
-    if (s.abortedAtStep.length) b += `<div class="muted" style="font-size:12px">中止步分布（abortedAtStep）：${s.abortedAtStep.map(x => `步 ${fmt.esc(x.step)} × ${x.count}`).join(' · ')}</div>`;
-    b += `<div class="muted" style="font-size:12px">重试后成功（retriedThenSucceeded）：${s.retriedThenSucceeded} · parse 警告 Σ ${s.parseWarningsTotal}</div>`;
-    if (s.verifierFails.length) b += `<div class="muted" style="font-size:12px">最常红的 verifier：${s.verifierFails.map(x => `<code>${fmt.esc(x.verifier)}</code> × ${x.fails}`).join(' · ')}</div>`;
+    let b = `<div class="muted" style="font-size:12px">${t('o.runHealth.exclDist')}${s.exclusions.length ? s.exclusions.map(x => `<code>${fmt.esc(x.signature)}</code> ${x.count}`).join(' · ') : t('o.runHealth.knownEmpty')}</div>`;
+    b += `<div class="muted" style="font-size:12px">${t('o.runHealth.timeoutRate')}${tr ? (tr.rate == null ? t('o.runHealth.noKnownDenom') : `${fmt.pct(tr.rate)}（${tr.timedOut}/${tr.n}）`) + (tr.legacyUnknown ? tf('o.runHealth.legacyUnknown', { n: tr.legacyUnknown }) + t(s.timeoutLegacyNote) : '') : '—'}</div>`;
+    if (s.abortedAtStep.length) b += `<div class="muted" style="font-size:12px">${t('o.runHealth.abortDist')}${s.abortedAtStep.map(x => tf('o.runHealth.abortStep', { step: fmt.esc(x.step), count: x.count })).join(' · ')}</div>`;
+    b += `<div class="muted" style="font-size:12px">${tf('o.runHealth.retried', { r: s.retriedThenSucceeded, w: s.parseWarningsTotal })}</div>`;
+    if (s.verifierFails.length) b += `<div class="muted" style="font-size:12px">${t('o.runHealth.topRed')}${s.verifierFails.map(x => `<code>${fmt.esc(x.verifier)}</code> × ${x.fails}`).join(' · ')}</div>`;
     return b;
   });
   return h + `</div>`;
@@ -2393,22 +2553,22 @@ function upgradeReportHtml(v, report) {
 // inconclusive banner (absolutes still shown). Sequence cards are 未验证假说, no adopt button.
 function probeBlockPanel(cli) {
   if (!cli) return '';   // no probe configured for this upgrade
-  let h = `<div class="panel"><h3>外部工具探针 <span class="muted" style="font-size:12px">${gEx('cli 下沉', 'cliSink')}信号</span></h3>`;
-  if (cli.tripwired) h += `<div class="muted" style="border-left:3px solid var(--warn);padding-left:10px;margin-bottom:8px">本节被剔除的题占比过高，两版对比<b>无法判定</b>；各版本绝对值仍照常展示。</div>`;
-  for (const w of cli.warnings) h += `<div class="muted" style="border-left:3px solid var(--err);padding-left:10px;margin-bottom:6px;font-size:12px">⚠ ${term('被剔除运行里检测到外部命令', '这些运行已排除，但命中提醒你留意“新版狂打命令又中断”这类被排除规则悄悄洗掉的情况')}：${fmt.esc(w.arm)} 的 <code>${fmt.esc(w.caseId)}</code> 跑了 <code>${fmt.esc(w.tool)}</code> ${fmt.esc((w.cmds || []).join(' / '))}</div>`;
-  for (const nc of cli.notComparable) h += `<div class="muted" style="font-size:12px">${fmt.esc(nc.tool)}：两版命令面不同，无法直接对比（${fmt.esc(nc.reason)}）</div>`;
+  let h = `<div class="panel"><h3>${t('o.probe.panelTitle')} <span class="muted" style="font-size:12px">${gEx(t('o.label.cliSink'), 'cliSink')} ${t('o.cov.signal')}</span></h3>`;
+  if (cli.tripwired) h += `<div class="muted" style="border-left:3px solid var(--warn);padding-left:10px;margin-bottom:8px">${t('o.probe.tripwired')}</div>`;
+  for (const w of cli.warnings) h += `<div class="muted" style="border-left:3px solid var(--err);padding-left:10px;margin-bottom:6px;font-size:12px">⚠ ${term(t('o.probe.excludedLabel'), t('o.probe.excludedTip'))}${tf('o.probe.ranBody', { arm: fmt.esc(w.arm), caseId: fmt.esc(w.caseId), tool: fmt.esc(w.tool), cmds: fmt.esc((w.cmds || []).join(' / ')) })}</div>`;
+  for (const nc of cli.notComparable) h += `<div class="muted" style="font-size:12px">${tf('o.probe.notComparable', { tool: fmt.esc(nc.tool), reason: fmt.esc(nc.reason) })}</div>`;
   for (const arm of cli.arms) {
     for (const tl of arm.tools) {
       const cov = tl.coverage;
-      const covTxt = !cov ? '无数据' : cov.status === 'unavailable' ? `用到 ${cov.invoked.length} 条（未宣告命令面）` : `${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}`;
-      h += `<div style="margin:8px 0 2px"><span class="badge">${fmt.esc(arm.arm)}</span> <code>${fmt.esc(tl.tool)}</code> <span class="badge ${tl.coverageStatus.tone === 'ok' ? 'ok' : tl.coverageStatus.tone === 'warn' ? 'warn' : ''}">${fmt.esc(t(tl.coverageStatus.word))}</span> <span class="muted">${gEx('命令面覆盖', 'commandSurface')} ${covTxt}</span></div>`;
+      const covTxt = !cov ? t('o.probe.noData') : cov.status === 'unavailable' ? tf('o.probe.usedUndeclared', { n: cov.invoked.length }) : `${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}`;
+      h += `<div style="margin:8px 0 2px"><span class="badge">${fmt.esc(arm.arm)}</span> <code>${fmt.esc(tl.tool)}</code> <span class="badge ${tl.coverageStatus.tone === 'ok' ? 'ok' : tl.coverageStatus.tone === 'warn' ? 'warn' : ''}">${fmt.esc(t(tl.coverageStatus.word))}</span> <span class="muted">${gEx(t('o.cov.commandSurface'), 'commandSurface')} ${covTxt}</span></div>`;
     }
   }
-  for (const sq of cli.sequences) h += `<div class="muted" style="font-size:12px">${term('未验证假说', EXP_GLOSSARY.hypothesisSeq)}（${fmt.esc(sq.arm)}）：命令连发 ${fmt.esc(sq.seq.join(' → '))}（${sq.distinctCases} 个不同题目）${sq.knownCollapse ? ' · 注记：或可用 <code>' + fmt.esc(sq.knownCollapse) + '</code>' : ''}</div>`;
+  for (const sq of cli.sequences) h += `<div class="muted" style="font-size:12px">${term(t('o.gloss.hypothesisSeqLabel'), t(EXP_GLOSSARY.hypothesisSeq))}（${fmt.esc(sq.arm)}）${tf('o.seq.body', { seq: fmt.esc(sq.seq.join(' → ')), cases: sq.distinctCases })}${sq.knownCollapse ? tf('o.seq.collapse', { cmd: fmt.esc(sq.knownCollapse) }) : ''}</div>`;
   const anyProx = cli.arms.find(a => a.proximityTop.length);
   if (anyProx) {
-    h += `<div style="margin:10px 0 4px"><b>${gEx('关联强度', 'proximityStrength')}</b> <span class="muted">时序邻近，非因果</span></div>`;
-    h += `<table><thead><tr><th>版本</th><th>前 → 后</th><th>紧邻度</th><th>置信</th><th>lift</th><th>n</th></tr></thead><tbody>`;
+    h += `<div style="margin:10px 0 4px"><b>${gEx(t('o.label.proximity'), 'proximityStrength')}</b> <span class="muted">${t('o.proximity.subShort')}</span></div>`;
+    h += `<table><thead><tr><th>${t('o.proximity.colVersion')}</th><th>${t('o.proximity.colEdge')}</th><th>${t('o.proximity.colCloseness')}</th><th>${t('o.proximity.colConfidence')}</th><th>lift</th><th>n</th></tr></thead><tbody>`;
     for (const arm of cli.arms) for (const ed of arm.proximityTop) h += `<tr><td><span class="badge">${fmt.esc(arm.arm)}</span></td><td><code>${fmt.esc(ed.from.type + ':' + ed.from.id)}</code> → <code>${fmt.esc(ed.to.type + ':' + ed.to.id)}</code></td><td>${ed.closeness}</td><td>${ed.confidence == null ? '—' : ed.confidence}</td><td>${ed.lift == null ? '—' : ed.lift}</td><td>${ed.pairCases}</td></tr>`;
     h += `</tbody></table>`;
   }

@@ -148,7 +148,7 @@ function runProcess({ cmd, args, cwd, env, timeoutMs }) {
 
 export function runHeadless({
   claude = resolveClaude(), profileDir, workspaceDir, prompt,
-  model = 'sonnet', maxTurns = 30, allowedTools = [], timeoutMs = 300_000,
+  model = 'sonnet', maxTurns = 30, allowedTools = [], timeoutMs = 300_000, systemPrompt = null,
 }) {
   mkdirSync(workspaceDir, { recursive: true });
   const args = [
@@ -158,6 +158,9 @@ export function runHeadless({
     '--max-turns', String(maxTurns),
     '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
   ];
+  // suite-level system prompt (e.g. pre-authorize small read-only quota fees so a paywall doesn't
+  // block a data query). Appended to the runtime's own system prompt, not a replacement.
+  if (systemPrompt) args.push('--append-system-prompt', String(systemPrompt));
   if (allowedTools.length) args.push('--allowedTools', ...allowedTools);
   return runProcess({
     cmd: claude.cmd, args, cwd: workspaceDir,
@@ -923,7 +926,7 @@ export async function runSuite({
           ? await runHeadless({
               claude, profileDir, workspaceDir, prompt, model,
               maxTurns: suite.maxTurns ?? 30, allowedTools: suite.allowedTools ?? [],
-              timeoutMs: suite.timeoutMs ?? 300_000,
+              timeoutMs: suite.timeoutMs ?? 300_000, systemPrompt: suite.appendSystemPrompt ?? null,
             })
           : await runCommandAdapter({
               runtime, workspaceDir, prompt, model,

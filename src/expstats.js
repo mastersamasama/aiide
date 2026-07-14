@@ -1186,6 +1186,12 @@ export function buildExpStats({
     // experiment can't support the paired jaccard merge-split analysis; the charts populate from
     // co-trigger/co-read/read-rate signals honestly (sparse → empty states). null when no sessions.
     depgraph: allSessions.length ? depgraphToCharts(depgraphReport(allSessions, { full: false })) : null,
+    // Raw per-session events (collectSessionEvents output) — the INPUT to depgraphReport, kept so the
+    // dynamic cross-experiment compare can pool both arms' sessions and rebuild a TRUE two-arm merged
+    // graph via the same tested depgraphReport (not a hand-merge of charted matrices). Also carries
+    // per-case triggerSet/readSet, so it doubles as the S5 evidence trigger/read-diff source. Additive;
+    // legacy embedded stats lack it → the compare falls back to the single-arm richer-of-two graph.
+    depgraphSessions: allSessions.length ? allSessions : null,
   };
 }
 

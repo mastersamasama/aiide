@@ -90,3 +90,87 @@ test('buildDynamicCompareReport: ≥8 paired tasks → a real (non-insufficient)
   assert.equal(rep.pairs, 10);
   assert.notEqual(rep.verdict, 'insufficient-data'); // 10 ≥ 8 → decideVerdict gives a real verdict
 });
+
+// ─── Report-gap completion: S7 probes/proximity · S8 coverage · S9 runtime · S6 budget · S5 detail · S4 merge ───
+
+// minimal sealed-stats shape that lights up S7 (probes+proximity) and S8 (coverage).
+function statsWithCoverage() {
+  return {
+    probes: [{ tool: 'okx', warnings: [], coverage: { declared: 3, ratio: 0.5, invoked: ['a'] }, bySkill: [], sequences: [], excludedHits: [] }],
+    proximity: { edges: [{ from: { type: 'skill', id: 'skill.a' }, to: { type: 'ref', id: 'r1' }, closeness: 0.8, confidence: 0.9, pairCases: 3, runs: 5 }], n: 5, axesOmitted: [] },
+    skillCoverage: { installed: ['skill.a'], triggerRate: [{ skill: 'skill.a', triggered: 5, attempted: 10 }], caseJoin: {}, neverTriggered: [] },
+    provenance: 'harness-observed',
+  };
+}
+
+test('S7/S8/S9/S6: dynamic report wires proximity, coverage, runtime self-report, budget from sealed stats', () => {
+  const A = mkExp('A', { nTasks: 10, C: 1 }), B = mkExp('B', { nTasks: 10, C: 1 });
+  A.stats = statsWithCoverage(); B.stats = statsWithCoverage();
+  const ri = { name: 'rt', version: '1.0', systemPrompt: { sha256: 'abcdef012345abcdef012345abcdef01', bytes: 100, tokensEst: 25 }, tools: ['Read'], defaults: {} };
+  A.environment.runtimeInfo = ri; B.environment.runtimeInfo = ri;
+  const rep = buildDynamicCompareReport({ expA: A, expB: B, now: '2026-01-01T00:00:00Z' });
+  assert.equal(rep.probes.status, 'ok');
+  assert.ok(rep.probes.arms.every((a) => a.proximity != null), 'S7 proximity charts wired per arm (was hardcoded null)');
+  assert.equal(rep.coverage.status, 'ok', 'S8 coverage populated (was unavailable)');
+  assert.equal(rep.runtimeInfo.status, 'ok', 'S9 runtime diff populated (both arms self-report)');
+  assert.equal(rep.budget.actual.session, 20, 'S6 budget.actual sessions = total repeats across both arms');
+  assert.ok(rep.budget.actual.hours > 0, 'S6 actual hours from real durationMs');
+  assert.equal(rep.budget.est.session, null, 'S6 est stays honest-null (a live compare has no planned budget)');
+});
+
+test('S8 coverage stays unavailable when an arm has no stats (legacy) — honest, never fabricated', () => {
+  const rep = buildDynamicCompareReport({ expA: mkExp('A', { nTasks: 10, C: 1 }), expB: mkExp('B', { nTasks: 10, C: 1 }), now: '2026-01-01T00:00:00Z' });
+  assert.equal(rep.coverage.status, 'unavailable');
+});
+
+test('S5: experimentToArm attaches case triggerSet/readSet from depgraphSessions; regressed card shows the diff', () => {
+  const A = mkExp('A', { nTasks: 10, C: 1 });   // old passes L2
+  const B = mkExp('B', { nTasks: 10, C: 0 });   // new fails L2 → every paired case regressed
+  const sessFor = (refs) => Object.keys(A.tasks).map((id) => ({ caseId: id, triggerSet: ['skill.a'], readSet: refs.map((r) => ({ logicalRef: r, refPath: r, skill: 'skill.a' })), provenance: 'harness-observed' }));
+  A.stats = { depgraphSessions: sessFor(['refOld']) };
+  B.stats = { depgraphSessions: sessFor(['refNew']) };
+  const armA = experimentToArm(A);
+  assert.deepEqual(armA.cases.t0.triggerSet, ['skill.a']);
+  assert.equal(armA.cases.t0.readSet[0].logicalRef, 'refOld');
+  assert.equal(armA.cases.t0.l2Result, 'pass');   // C=1
+  const rep = buildDynamicCompareReport({ expA: A, expB: B, now: '2026-01-01T00:00:00Z' });
+  const card = rep.regressedCards.flatMap((c) => c.cards)[0];
+  assert.ok(card, 'at least one regressed card built');
+  assert.deepEqual(card.armA.readSet, ['refOld']);
+  assert.deepEqual(card.armB.readSet, ['refNew']);
+  assert.deepEqual(card.readSetDiff.addedByNew, ['refNew']);
+  assert.deepEqual(card.readSetDiff.removedByNew, ['refOld']);
+});
+
+test('S5: legacy stats without depgraphSessions → empty case detail (honest blank; top-level diff still renders)', () => {
+  const arm = experimentToArm(mkExp('A', { nTasks: 10, C: 1 }));   // no stats
+  assert.deepEqual(arm.cases.t0.triggerSet, []);
+  assert.deepEqual(arm.cases.t0.readSet, []);
+});
+
+test('S6 trend: prevExps → report.diff.hasPrev with verdict/cost/regressed blocks; no prevExps → honest 无基准', () => {
+  const mk = (id, C) => mkExp(id, { nTasks: 10, C });
+  const prevA = mk('pA', 1), prevB = mk('pB', 1);   // previous pair: both arms correct (no regression)
+  const A = mk('A', 1), B = mk('B', 0);             // current pair: new arm fails → cases regressed now
+  const rep = buildDynamicCompareReport({ expA: A, expB: B, prevExps: { expA: prevA, expB: prevB }, now: '2026-01-01T00:00:00Z' });
+  assert.equal(rep.diff.hasPrev, true, 'a prior pair makes S6 a real trend diff (not a stub)');
+  assert.ok(rep.diff.verdictChange && 'changed' in rep.diff.verdictChange, 'verdict change block present');
+  assert.ok(Array.isArray(rep.diff.axisDeltas), 'cost axis deltas present');
+  assert.ok(Array.isArray(rep.diff.regressedCases.added), 'newly-regressed case ids present');
+  const noPrev = buildDynamicCompareReport({ expA: A, expB: B, now: '2026-01-01T00:00:00Z' });
+  assert.equal(noPrev.diff.hasPrev, false, 'no earlier pair → honest 无基准 (never fabricated)');
+});
+
+test('S4: both arms retain depgraphSessions → true pooled merge (n = |A|+|B|); one missing → single-arm fallback', () => {
+  const A = mkExp('A', { nTasks: 10, C: 1 }), B = mkExp('B', { nTasks: 10, C: 1 });
+  const sess = (ids, skill) => ids.map((id) => ({ caseId: id, triggerSet: [skill], readSet: [], provenance: 'harness-observed' }));
+  A.stats = { depgraphSessions: sess(Object.keys(A.tasks), 'skill.a') };
+  B.stats = { depgraphSessions: sess(Object.keys(B.tasks), 'skill.b') };
+  const merged = buildDynamicCompareReport({ expA: A, expB: B, now: '2026-01-01T00:00:00Z' });
+  assert.equal(merged.depgraph.merged, true, 'two-arm pooled merge flagged');
+  assert.equal(merged.depgraph.n, 20, 'n = pooled session count across both arms');
+  // one arm lacks sessions (legacy) → fall back to single-arm richer-of-two, no merged flag
+  B.stats = { depgraph: { n: 1, graph: { nodes: [{ name: 'x' }], edges: [] }, sankey: { links: [] }, heatmap: { refs: [] } } };
+  const fallback = buildDynamicCompareReport({ expA: A, expB: B, now: '2026-01-01T00:00:00Z' });
+  assert.notEqual(fallback.depgraph.merged, true, 'fallback single-arm, not a fake merge');
+});

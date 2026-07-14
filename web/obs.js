@@ -398,6 +398,56 @@ export function buildUpgradeView(report) {
   };
 }
 
+// ---- Experiment Q-A overview (master-detail) — the color-coded question list ------------------
+// The exp-detail page shows a scannable list of ALL questions (one compact row each) + a detail pane,
+// instead of stacking every task's full panel. Color is FUNCTIONAL: hue encodes quality (composite),
+// red→green; an outright-wrong answer (C=0) is forced red so "red means wrong" always holds. Pure over
+// the served experiment (tasks = scoreTask output); the DOM/render lives in index.html.
+
+// composite∈[0,1] → hue 0(red)…120(green). correct===false (C=0) forces red regardless of composite;
+// null composite (no data) → null hue (caller renders a neutral/gray row, never a fake green).
+export function scoreHue(composite, correct = null) {
+  if (correct === false) return 0;                      // wrong answer → unambiguous red
+  if (composite == null || Number.isNaN(composite)) return null;
+  const c = Math.max(0, Math.min(1, composite));
+  return Math.round(c * 120);
+}
+
+// One row per non-held-out task, sorted attention-first (lowest composite on top; no-data rows last)
+// so the reds cluster where the eye lands. Each row carries the at-a-glance metrics + a hue + a verdict.
+export function buildQuestionList(exp) {
+  const tasks = exp?.tasks ?? {};
+  const items = [];
+  for (const [id, tk] of Object.entries(tasks)) {
+    if (tk?.held_out === true) continue;
+    const composite = tk.composite ?? tk.compositePartial ?? null;
+    const C = tk.C ?? null;
+    const verdict = C == null ? 'na' : C >= 1 ? 'pass' : C <= 0 ? 'fail' : 'partial';
+    items.push({
+      id,
+      label: tk.prompt ?? id,
+      skill: tk.expected_skill ?? null,
+      category: tk.category ?? null,
+      composite, C, verdict,
+      successRate: tk.successRate ?? null,
+      activationRate: tk.activationRate ?? null,
+      meanCostUsd: tk.efficiency?.meanCostUsd ?? null,
+      meanDurationMs: tk.efficiency?.meanDurationMs ?? null,
+      meanOutTokens: tk.efficiency?.meanOutTokens ?? null,
+      n: tk.n ?? null,
+      lowSample: tk.lowSample === true,
+      degraded: tk.degraded === true,
+      hue: scoreHue(composite, verdict === 'fail' ? false : null),
+    });
+  }
+  items.sort((a, b) => {
+    const av = a.composite == null ? Infinity : a.composite;
+    const bv = b.composite == null ? Infinity : b.composite;
+    return av - bv || String(a.id).localeCompare(String(b.id));
+  });
+  return items;
+}
+
 // ---- Experiment statistics card (design §2.3/§2.4) — three-state, block-status badges ----------
 // Pure view models over `experiment.stats` (buildExpStats output). The dashboard card renders these;
 // it re-computes nothing. Honesty discipline mirrors the engine: an absent signal is null, never a

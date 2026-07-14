@@ -53,7 +53,9 @@ function usage() {
   aiide skill [name]                  skill profiles: list all, or one skill's version timeline + per-cohort scores
   aiide lab init --suite <file.json>  write an annotated, runnable suite skeleton [--force]
   aiide lab run --suite <file.json>   run isolated skill experiment (repeats + scoring)
-      [--model sonnet] [--repeats 3] [--meta k=v ...] [--fresh]
+      [--model sonnet] [--repeats 3] [--concurrency N] [--meta k=v ...] [--fresh]
+      --concurrency N: run up to N questions at once (bounded pool; default 1 = serial). Faster, but
+                       hits the API N× harder — mind rate limits. Journal+workspace are parallel-safe.
       [--grading-authority deterministic|judged] [--judge-model haiku] [--judge-runtime claude-code]
       [--responder policy|scripted|judge]   (judged assertions + auto-answer interactive gates)
       resume: an interrupted run auto-continues from its progress journal; --fresh forces a rerun
@@ -137,6 +139,11 @@ async function cmdLabRun() {
   const models = flags.models ? String(flags.models).split(',').map(s => s.trim()).filter(Boolean)
     : [flags.model ?? baseSuite.model ?? 'sonnet'];
   const fresh = args.includes('--fresh'); // bare boolean: the generic parser can't set it as last arg
+  // --concurrency N: run up to N questions at once (bounded pool, same engine the upgrade arms use).
+  // Default 1 = serial (conservative: avoids bursting the API endpoint). The journal append is atomic
+  // and each task gets an isolated workspace, so parallel is safe — it just hits the API N× harder.
+  const concurrency = flags.concurrency ? Math.max(1, Number(flags.concurrency) | 0) : 1;
+  const parallel = concurrency > 1;
   const exps = [];
   for (const model of models) {
     const suite = { ...baseSuite, model };
@@ -148,22 +155,26 @@ async function cmdLabRun() {
     }
     if (flags['grading-authority']) suite.grading = { ...(baseSuite.grading ?? {}), authority: flags['grading-authority'] };
     if (flags.responder) suite.responder = { ...(baseSuite.responder ?? {}), strategy: flags.responder };
-    console.log(`suite: ${suite.name} · model=${model} · ${suite.tasks.length} tasks × ${suite.repeats ?? 3} repeats`);
+    console.log(`suite: ${suite.name} · model=${model} · ${suite.tasks.length} tasks × ${suite.repeats ?? 3} repeats${parallel ? ` · concurrency=${concurrency}` : ''}`);
     const t0 = Date.now();
     const exp = await runSuite({
-      suite, suiteDir: dirname(suitePath), suitePath, dataDir, pricing, cliMeta, fresh,
+      suite, suiteDir: dirname(suitePath), suitePath, dataDir, pricing, cliMeta, fresh, concurrency,
       onProgress: (e) => {
         if (e.type === 'metadata') printPreflight(e);
         if (e.type === 'resume') console.log(`  ↻ resuming: ${e.done}/${e.total} repeats done, ${e.total - e.done} to go`);
         if (e.type === 'service-ready') console.log(`  service up: ${e.url} · model=${e.model}${e.endpointHost ? ` · endpoint=${e.endpointHost}` : ''}`);
         if (e.type === 'warning') console.log(`  ⚠ ${e.message}`);
-        if (e.type === 'repeat-start') process.stdout.write(`  ${e.task} r${e.repeat}/${e.of} … `);
-        if (e.type === 'repeat-retry') process.stdout.write(`retry ${e.attempt} (${e.signature}, backoff ${(e.backoffMs / 1000).toFixed(1)}s) … `);
-        if (e.type === 'repeat-done') console.log(
-          e.cached ? '✓ (cached)'
+        // serial: partial "task … " line completed by repeat-done. parallel: interleaving would garble
+        // that pattern, so print a self-contained line per event instead.
+        if (e.type === 'repeat-start' && !parallel) process.stdout.write(`  ${e.task} r${e.repeat}/${e.of} … `);
+        if (e.type === 'repeat-retry' && !parallel) process.stdout.write(`retry ${e.attempt} (${e.signature}, backoff ${(e.backoffMs / 1000).toFixed(1)}s) … `);
+        if (e.type === 'repeat-done') {
+          const result = e.cached ? '✓ (cached)'
             : e.excluded ? `excluded (env-noise: ${e.signature})`
             : e.error ? `FAILED (${e.error.slice(0, 80)})`
-            : `C=${e.C}${e.abortedAtStep ? ` (aborted@step ${e.abortedAtStep})` : ''}`);
+            : `C=${e.C}${e.abortedAtStep ? ` (aborted@step ${e.abortedAtStep})` : ''}`;
+          console.log(parallel ? `  ${e.task} r${e.repeat} ${result}` : result);
+        }
       },
     });
     console.log(`\nexperiment ${exp.id} done in ${((Date.now() - t0) / 1000).toFixed(0)}s`);

@@ -115,6 +115,21 @@
   .qa .tag { font-size: 11px; color: var(--dim); font-weight: 600; }
   .qa .qtext { font-size: 14px; line-height: 1.55; color: var(--fg); }
   .vbadges { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; align-items: center; }
+  /* Q-A overview (master-detail): color-coded question list (left) + reused task detail pane (right).
+     hue is functional — red=wrong/low-quality → green=high-quality; a wrong answer (C=0) is forced red. */
+  .qov-split { display: flex; gap: 16px; margin-top: 6px; align-items: flex-start; }
+  .qov-list { flex: 0 0 340px; max-height: 78vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); position: sticky; top: 10px; }
+  .qov-detail { flex: 1 1 auto; min-width: 0; }
+  .qov-item { padding: 8px 10px 9px; border-left: 3px solid var(--border); border-bottom: 1px solid var(--border); cursor: pointer; }
+  .qov-item:last-child { border-bottom: none; }
+  .qov-item:hover { background: var(--panel2); }
+  .qov-item.active { background: var(--panel2); box-shadow: inset 2px 0 0 var(--accent); }
+  .qov-row1 { display: flex; align-items: center; gap: 8px; }
+  .qov-glyph { font-weight: 700; width: 12px; text-align: center; flex: none; }
+  .qov-score { font-variant-numeric: tabular-nums; font-weight: 600; width: 26px; text-align: right; flex: none; font-size: 12px; }
+  .qov-label { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qov-row2 { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 11px; align-items: center; }
+  @media (max-width: 820px) { .qov-split { flex-direction: column; } .qov-list { flex: none; width: 100%; max-height: 42vh; position: static; } }
   /* reference-relationship charts (native ECharts): co-trigger graph / co-read heatmap / sankey */
   .rel-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
   @media (max-width: 900px) { .rel-charts { grid-template-columns: 1fr; } }
@@ -258,6 +273,8 @@ const I18N = {
     'task.efficiency': 'efficiency (diagnostic only — not part of the score): mean',
     'task.drilldown': 'drill-down:', 'task.repeatsWord': 'repeats',
     'panel.taskRuns': 'task runs — what was asked & how it answered',
+    'qov.hint': 'click a question for detail · red = wrong, greener = higher quality',
+    'qov.success': 'success', 'qov.act': 'activation',
     'panel.diagnostics': 'deep diagnostics (runtime · context · stats · obs · health · metadata)',
     'task.checks': 'checks', 'task.repOf': 'shown:', 'task.noAnswer': 'no answer captured (all repeats excluded)',
     'th.activated': 'activated', 'th.verifiers': 'verifiers', 'th.wall': 'wall', 'th.error': 'error',
@@ -450,6 +467,8 @@ const I18N = {
     'task.efficiency': '效率（仅诊断——不计入评分）：均值',
     'task.drilldown': '下钻：', 'task.repeatsWord': '次重复',
     'panel.taskRuns': '任务运行 — 问了什么、答成怎样',
+    'qov.hint': '点击问题查看详情 · 红=错，越绿质量越高',
+    'qov.success': '成功率', 'qov.act': '激活',
     'panel.diagnostics': '深入诊断（runtime · context · 统计 · 观测 · 健康 · metadata）',
     'task.checks': '判定', 'task.repOf': '代表：', 'task.noAnswer': '本任务未捕获回答（重复均被排除）',
     'th.activated': '已触发', 'th.verifiers': '验证器', 'th.wall': '耗时', 'th.error': '错误',
@@ -1299,6 +1318,7 @@ async function viewExperiment(id) {
   const e = await api('experiments/' + encodeURIComponent(id));
   copyPayload.exp = e;
   const s = e.summary;
+  const qlist = buildQuestionList(e);   // color-coded question list (worst-first); detail on click
   $app.innerHTML = `
     <p><a href="#experiments">${t('back.experiments')}</a></p>
     <h2 style="margin:6px 0">${fmt.esc(e.suiteName)} <span class="muted">${fmt.esc(e.model)} · ${e.repeats} ${t('exp.repeats')}</span> <button class="btn" title="${t('copy.jsonTip')}" onclick="copyJson(this,'exp')">⧉ ${t('copy.json')}</button></h2>
@@ -1317,12 +1337,47 @@ async function viewExperiment(id) {
       ${scoreBar(t('score.C'), s.C, 'var(--ok)')}${scoreBar(t('score.P'), s.P, 'var(--accent)')}
       ${scoreBar(t('score.R'), s.R, 'var(--purple)')}${scoreBar(t('score.H'), s.H, 'var(--cyan)')}
     </div>
-    <div class="section-label">${t('panel.taskRuns')} <span style="color:var(--fg)">${Object.keys(e.tasks).length}</span></div>
-    ${Object.entries(e.tasks).map(([tid, tk]) => taskPanel(tid, tk, e.profile?.skills ?? [])).join('')}
+    <div class="section-label">${t('panel.taskRuns')} <span style="color:var(--fg)">${qlist.length}</span> <span class="muted" style="text-transform:none;letter-spacing:0">· ${t('qov.hint')}</span></div>
+    <div class="qov-split">
+      <div class="qov-list" id="qov-list">${qlist.map(qovItem).join('')}</div>
+      <div class="qov-detail" id="qov-detail"></div>
+    </div>
     ${diagnosticsSection(e)}`;
+  const first = $app.querySelector('#qov-list .qov-item');
+  if (first) selectQuestion(first);   // default-select the worst question (attention-first)
   annRender();
   applyPersistedDetails($app);
   wireDiagnosticsCharts(expDepgraph(e));
+}
+
+// One compact row in the question list. Color (border + glyph + score) is the hue from buildQuestionList:
+// red=wrong/low-quality → green=high-quality; null hue (no data) → neutral. Click swaps the detail pane.
+function qovItem(q) {
+  const col = q.hue == null ? 'var(--dim)' : `hsl(${q.hue} 65% 52%)`;
+  const glyph = q.verdict === 'pass' ? '✓' : q.verdict === 'fail' ? '✗' : q.verdict === 'partial' ? '◐' : '–';
+  const score = q.composite == null ? '–' : Math.round(q.composite * 100);
+  const bits = [];
+  if (q.skill) bits.push(`<span class="badge skill">${fmt.esc(q.skill)}</span>`);
+  bits.push(`<span class="muted">${t('qov.success')} ${q.successRate == null ? t('na') : fmt.pct(q.successRate)}</span>`);
+  bits.push(`<span class="muted">${t('qov.act')} ${q.activationRate == null ? t('na') : fmt.pct(q.activationRate)}</span>`);
+  if (q.meanCostUsd != null) bits.push(`<span class="muted">${fmt.usd(q.meanCostUsd)}</span>`);
+  if (q.n != null) bits.push(`<span class="muted">n=${q.n}</span>`);
+  if (q.lowSample) bits.push(`<span class="badge warn">${t('badge.lowSample')}</span>`);
+  if (q.degraded) bits.push(`<span class="badge warn">${t('badge.degraded')}</span>`);
+  return `<div class="qov-item" data-qid="${fmt.esc(q.id)}" onclick="selectQuestion(this)" style="border-left-color:${col}" title="${fmt.esc(q.label)}">
+    <div class="qov-row1"><span class="qov-glyph" style="color:${col}">${glyph}</span><span class="qov-score" style="color:${col}">${score}</span><span class="qov-label">${fmt.esc(q.label)}</span></div>
+    <div class="qov-row2">${bits.join('')}</div></div>`;
+}
+// Render the selected question's FULL detail (reuses the existing taskPanel verbatim) into the right pane.
+function selectQuestion(el) {
+  const qid = el.dataset.qid, e = copyPayload.exp;
+  if (!e || !e.tasks || !e.tasks[qid]) return;
+  document.querySelectorAll('#qov-list .qov-item').forEach(x => x.classList.toggle('active', x === el));
+  const pane = document.getElementById('qov-detail');
+  if (!pane) return;
+  pane.innerHTML = taskPanel(qid, e.tasks[qid], e.profile?.skills ?? []);
+  applyPersistedDetails(pane);
+  annRender();
 }
 
 // Deep-diagnostics section (collapsed by default). Everything that answers "why/how deep" — runtime

@@ -112,8 +112,25 @@ function loadResolvedExperiment(dataDir, id) {
   const file = join(dataDir, 'experiments', `${id}.json`);
   if (!existsSync(file)) return null;
   const exp = JSON.parse(readFileSync(file, 'utf8'));
-  exp.stats = resolveExpStats(exp, dataDir).stats;
+  const resolved = resolveExpStats(exp, dataDir);
+  exp.stats = resolved.stats;
+  exp._statsResolved = resolved;   // full wrapper {stats, statsAuthority, warnings} — S8 coverage authority reads it
   return exp;
+}
+
+// S6 trend baseline: the previous same-lineage pair. For each current arm, pick the newest experiment
+// of the SAME suite+model sealed BEFORE it (excluding the two current ids). Both found & distinct →
+// that earlier pair is the diff baseline; otherwise null (reportDiff → honest "无基准"). Same-suite
+// self-compares degrade gracefully (the exclusions keep it from picking a current arm as its own prev).
+function findPrevPair(dataDir, a, b) {
+  const all = listExperiments(dataDir);   // newest-first, carries {id, suiteName, model, createdAt}
+  const prevOf = (cur) => all.find((e) => e.id !== a.id && e.id !== b.id
+    && e.suiteName === cur.suiteName && e.model === cur.model
+    && String(e.createdAt) < String(cur.createdAt));
+  const pa = prevOf(a), pb = prevOf(b);
+  if (!pa || !pb || pa.id === pb.id) return null;
+  const expA = loadResolvedExperiment(dataDir, pa.id), expB = loadResolvedExperiment(dataDir, pb.id);
+  return expA && expB ? { expA, expB } : null;
 }
 
 // GET /api/compare/<idA>/<idB>/report → a full upgrade report built live from the two experiments.
@@ -122,7 +139,7 @@ function sendDynamicCompare(res, dataDir, idA, idB) {
   const a = loadResolvedExperiment(dataDir, idA), b = loadResolvedExperiment(dataDir, idB);
   if (!a || !b) return send(res, 404, { error: 'experiment not found' });
   try {
-    return send(res, 200, buildDynamicCompareReport({ expA: a, expB: b }));
+    return send(res, 200, buildDynamicCompareReport({ expA: a, expB: b, prevExps: findPrevPair(dataDir, a, b) }));
   } catch (err) {
     return send(res, 500, { error: 'dynamic compare failed: ' + String(err) });
   }
@@ -133,7 +150,7 @@ function sendDynamicCompareHtml(res, dataDir, idA, idB) {
   const a = loadResolvedExperiment(dataDir, idA), b = loadResolvedExperiment(dataDir, idB);
   if (!a || !b) return send(res, 404, { error: 'experiment not found' });
   try {
-    const html = buildReportHtml(buildDynamicCompareReport({ expA: a, expB: b }));
+    const html = buildReportHtml(buildDynamicCompareReport({ expA: a, expB: b, prevExps: findPrevPair(dataDir, a, b) }));
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
     res.end(html);
   } catch (err) {

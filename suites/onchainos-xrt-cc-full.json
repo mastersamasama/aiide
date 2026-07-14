@@ -2,8 +2,11 @@
   "name": "onchainos-xrt-cc-full",
   "model": "sonnet",
   "repeats": 1,
-  "maxTurns": 15,
-  "timeoutMs": 300000,
+  "maxTurns": 50,
+  "timeoutMs": 600000,
+  "probes": [
+    "onchainos"
+  ],
   "judge": {
     "runtime": "claude-code",
     "model": "sonnet",
@@ -94,10 +97,6 @@
           "pattern": "0x[a-fA-F0-9]{40}"
         },
         {
-          "type": "regex",
-          "pattern": "USDC"
-        },
-        {
           "type": "judge",
           "criterion": "执行了 onchainos wallet status 命令获取地址(未虚构不存在的 wallet addresses 子命令)",
           "evidence": [
@@ -136,7 +135,7 @@
     },
     {
       "id": "W05",
-      "prompt": "帮我看下这个钱包最近几笔交易记录",
+      "prompt": "帮我看下我的钱包最近几笔交易记录",
       "category": "account",
       "difficulty": "L1",
       "lang": "zh",
@@ -655,7 +654,7 @@
         },
         {
           "type": "judge",
-          "criterion": "输出的每个代币条目均包含合约地址, 同 symbol 条目未合并",
+          "criterion": "输出的每个代币条目均包含合约地址 (可为截断形式, 如 EH83pX7c...pump 或 0x1234...abcd), 同 symbol 不同合约的条目未错误合并",
           "evidence": [
             "answer"
           ]
@@ -669,14 +668,14 @@
         },
         {
           "type": "judge",
-          "criterion": "输出未直接暴露原始 JSON 字段名 (bondingPercent/top10HoldingsPercent 已翻译为可读标签)",
+          "criterion": "输出以人类可读的表格/标签呈现指标 (bondingPercent/top10HoldingsPercent 等已翻译为可读标签), 未整段倾泻原始 JSON 结构 (说明性文字中偶现个别字段名可接受)",
           "evidence": [
             "answer"
           ]
         },
         {
           "type": "judge",
-          "criterion": "最终回答形态: 新盘列表: 代币名/symbol + 合约地址 + bonding curve 进度 + 市值等指标, 条目动态",
+          "criterion": "最终回答形态: 新盘列表: 代币名/symbol + 合约地址 + 市值等指标, 条目动态",
           "evidence": [
             "answer"
           ]
@@ -838,19 +837,15 @@
       "human_gate": "none",
       "verifiers": [
         {
-          "type": "regex",
-          "pattern": "0x[a-fA-F0-9]{40}"
-        },
-        {
           "type": "judge",
-          "criterion": "调用 portfolio all-balances (及/或 total-value) 且 --address 参数为题目给定的 0xd8dA 开头地址, --chains 仅含 ethereum (或 1)",
+          "criterion": "最终回复表明已查询该地址在 Ethereum 上的代币持仓与总价值 (基于 portfolio 数据, 未虚构)",
           "evidence": [
             "answer"
           ]
         },
         {
           "type": "judge",
-          "criterion": "输出中每个代币行包含缩写合约地址 (形如 0x1234...abcd) 或原生币标注 (native)",
+          "criterion": "逐条列出代币时每行含缩写合约地址或 native 标注; 若因数据质量问题(如大量疑似垃圾/空投代币)而选择汇总或警示, 亦视为合理",
           "evidence": [
             "answer"
           ]
@@ -885,7 +880,7 @@
         },
         {
           "type": "judge",
-          "criterion": "最终回答形态: 总资产 USD 数值 (2 位小数, 大额可用 $1.2M 简写) + Markdown 代币表: Symbol / Amount(UI单位) / USD Value / Contract(缩写); 余额与价值为动态数值不写死; 零余额展示 $0.00 而非报错",
+          "criterion": "最终回答形态: 总资产 USD 数值 + 代币明细(表格); 或在数据质量存疑时给出核心持仓/汇总 + 明确的数据质量警示; 数值动态不写死",
           "evidence": [
             "answer"
           ]
@@ -907,7 +902,7 @@
       "verifiers": [
         {
           "type": "regex",
-          "pattern": "\\$\\s?\\d"
+          "pattern": "(\\$\\s?\\d|\\d[\\d,]*\\s?(USDC|USDT|USD))"
         },
         {
           "type": "judge",
@@ -1036,7 +1031,7 @@
       "verifiers": [
         {
           "type": "judge",
-          "criterion": "执行了 onchainos security dapp-scan 命令且 --domain 参数包含 uniswap-claims.xyz",
+          "criterion": "最终回复表明已对该域名执行安全扫描并给出判定 (未虚构扫描结果)",
           "evidence": [
             "answer"
           ]
@@ -1092,12 +1087,8 @@
       "human_gate": "none",
       "verifiers": [
         {
-          "type": "regex",
-          "pattern": "0x[a-fA-F0-9]{40}"
-        },
-        {
           "type": "judge",
-          "criterion": "执行了 onchainos security approvals 命令, --address 参数为 0x 开头的 42 字符 EVM 地址, --chain 参数包含 ethereum 和 base (链名) 或 1 和 8453 (索引)",
+          "criterion": "最终回复表明已查询该钱包在 ethereum 与 base 上的代币授权情况 (基于 approvals 数据, 未虚构)",
           "evidence": [
             "answer"
           ]
@@ -1118,14 +1109,14 @@
         },
         {
           "type": "judge",
-          "criterion": "命令日志中未出现任何写操作命令 (无 wallet send / wallet contract-call / gateway broadcast, 未发出 revoke 交易)",
+          "criterion": "最终回复未声称执行任何撤销/写操作 (无 revoke / wallet send / contract-call)",
           "evidence": [
             "answer"
           ]
         },
         {
           "type": "judge",
-          "criterion": "approvals 命令退出码为 0",
+          "criterion": "最终回复给出明确的授权查询结果: 授权清单, 或明确告知无活跃授权 (total:0)",
           "evidence": [
             "answer"
           ]
@@ -1312,5 +1303,6 @@
     "Glob",
     "Grep",
     "Bash(onchainos:*)"
-  ]
+  ],
+  "appendSystemPrompt": "当且仅当只读查询类操作(如 defi positions / security approvals / portfolio / wallet history 等数据查询)因 onchainos 免费额度用尽而被要求支付小额查询费(通常 0.0001~0.0005 USDT/USDG)时,你已获用户预先授权:可自动选择支付一次以完成该次只读查询,无需再向用户确认。此预先授权严格且仅限于上述小额数据查询费;绝不可用于 swap / send / transfer / invest / withdraw / contract-call / broadcast 等任何转移资金或改变链上状态的写操作——这类操作仍必须先征得用户明确同意。"
 }

@@ -10,6 +10,7 @@ import {
   UPGRADE_ENUM_GLOSS, upgradeEnumGloss,
   expStatsState, EXP_STATS_STATE, blockStatusBadge, expSkillCoverageView, expRefCoverageView,
   expProbeView, expProximityView, buildExpStatsCard, buildProbeBlockView, EXP_GLOSSARY,
+  buildQuestionList, scoreHue,
   statsAuthorityBadge, expSkillDetailRows, statsProvenanceBadge, CURRENT_STATS_SCHEMA_VERSION,
   NULL_REASON_COPY, nullReasonCopy, contextCompositionView, toolUsageView, fileTargetsView,
   runHealthView, CONTEXT_COMPOSITION_TITLE, CONTEXT_BUCKET_LABELS, TOOL_USAGE_TITLE,
@@ -1361,4 +1362,47 @@ test('W2S1 dashboard wiring: runtime 环境卡 self-description section + compar
   // causal ban holds in the rendering layer too
   const panelSrc = html.slice(html.indexOf('function runtimeInfoDiffPanel'), html.indexOf('// S15: skill-version causal row'));
   assert.doesNotMatch(panelSrc, /导致|因此|因为/);
+});
+
+// ── Q-A overview (master-detail) — scoreHue + buildQuestionList ──────────────────────────────
+test('scoreHue: 0=red, 1=green, C=0 forces red, null composite → null (neutral)', () => {
+  assert.equal(scoreHue(0), 0);          // red
+  assert.equal(scoreHue(1), 120);        // green
+  assert.equal(scoreHue(0.5), 60);       // amber
+  assert.equal(scoreHue(0.9, false), 0, 'wrong answer (C=0) is red even at high composite');
+  assert.equal(scoreHue(null), null, 'no data → neutral hue, never a fake green');
+  assert.equal(scoreHue(1.5), 120, 'clamps above 1');
+});
+
+test('buildQuestionList: attention-first sort, per-question metrics, hue, verdict; held_out skipped', () => {
+  const exp = { tasks: {
+    good: { prompt: 'q-good', expected_skill: 'skill.a', category: 'cat', composite: 0.95, C: 1, successRate: 1, activationRate: 1, n: 3, efficiency: { meanCostUsd: 0.1, meanDurationMs: 2000, meanOutTokens: 50 } },
+    bad:  { prompt: 'q-bad', expected_skill: 'skill.b', category: 'cat', composite: 0.1, C: 0, successRate: 0, activationRate: 0.2, n: 3, lowSample: true, efficiency: { meanCostUsd: 0.3, meanDurationMs: 5000, meanOutTokens: 80 } },
+    mid:  { prompt: 'q-mid', composite: 0.5, C: 0.5, n: 2 },
+    held: { held_out: true, prompt: 'hidden', composite: 1, C: 1 },
+  } };
+  const list = buildQuestionList(exp);
+  assert.equal(list.length, 3, 'held_out excluded');
+  assert.deepEqual(list.map(i => i.id), ['bad', 'mid', 'good'], 'worst composite first (attention-first)');
+  const bad = list[0];
+  assert.equal(bad.verdict, 'fail');
+  assert.equal(bad.hue, 0, 'C=0 → red');
+  assert.equal(bad.lowSample, true);
+  assert.equal(bad.meanCostUsd, 0.3);
+  assert.equal(list.find(i => i.id === 'mid').verdict, 'partial', '0<C<1 → partial');
+  assert.equal(list.find(i => i.id === 'good').verdict, 'pass');
+  assert.equal(list.find(i => i.id === 'good').hue, Math.round(0.95 * 120), 'pass hue from composite');
+});
+
+test('buildQuestionList: compositePartial fallback, null composite sorts last with null hue', () => {
+  const exp = { tasks: {
+    a: { prompt: 'a', C: 1, compositePartial: 0.8 },      // no composite → falls back to compositePartial
+    z: { prompt: 'z', C: null },                          // no composite at all → no-data row
+  } };
+  const list = buildQuestionList(exp);
+  assert.equal(list[0].id, 'a', 'has-data row first');
+  assert.equal(list[0].composite, 0.8);
+  assert.equal(list[1].id, 'z', 'no-data row sorts last');
+  assert.equal(list[1].hue, null, 'null composite → neutral hue');
+  assert.equal(list[1].verdict, 'na');
 });

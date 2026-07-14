@@ -281,13 +281,15 @@ export const UPGRADE_INTENTS = ['cost-opt', 'quality-fix', 'neutral-refactor'];
 // tooltip for AI cross-reference. Of these, only `flow-incomplete` currently surfaces in the
 // dashboard's aggregate views; the rest live here so any per-case enum U7 later surfaces is glossed
 // consistently rather than leaking a raw English token.
+// enum → i18n key; the renderer resolves the key via t(). Unmapped enums pass through as their raw
+// token (t() returns the key unchanged when it isn't in the dict), so nothing ever throws.
 export const UPGRADE_ENUM_GLOSS = {
-  'ok': '正常',
-  'wrong-route': '路由错',
-  'executed-after-confirm': '确认后执行',
-  'asked-and-halted': '问完即停',
-  'flow-incomplete': '确认后中断',
-  'permission-artifact': '权限拒绝',
+  'ok': 'o.gloss.ok',
+  'wrong-route': 'o.gloss.wrong-route',
+  'executed-after-confirm': 'o.gloss.executed-after-confirm',
+  'asked-and-halted': 'o.gloss.asked-and-halted',
+  'flow-incomplete': 'o.gloss.flow-incomplete',
+  'permission-artifact': 'o.gloss.permission-artifact',
 };
 export function upgradeEnumGloss(enumVal) { return UPGRADE_ENUM_GLOSS[enumVal] ?? enumVal; }
 
@@ -470,9 +472,9 @@ export function expStatsState(experiment) {
 // 权威; the two recompute authorities are honest-but-non-authoritative backfills → 回填.
 export function statsAuthorityBadge(authority) {
   if (authority === 'embedded' || authority === 'authoritative-embedded')
-    return { word: '权威（封存时计算）', tone: 'ok' };
+    return { word: 'o.auth.embedded', tone: 'ok' };
   if (authority === 'non-authoritative-recompute' || authority === 'recomputed-no-embedded')
-    return { word: '回填（非权威）', tone: 'warn' };
+    return { word: 'o.auth.backfill', tone: 'warn' };
   return null; // no resolver ran (raw embedded object) → no badge, not a fake one
 }
 
@@ -485,12 +487,12 @@ export const CURRENT_STATS_SCHEMA_VERSION = 3;
 // block-level status → a BADGE (a WORD, never a ratio). Each of the four honest states gets a
 // plain-language word + a tone stem the renderer maps to a --colour var. Unknown → passthrough word.
 export const BLOCK_STATUS_BADGE = {
-  'insufficient-data': { word: '样本不足', tone: 'dim' },
-  'unavailable': { word: '不可用', tone: 'dim' },
-  'suspect': { word: '可疑', tone: 'warn' },
-  'held-out-unknown': { word: '留出未知', tone: 'warn' },
-  'ok': { word: '正常', tone: 'ok' },
-  'available': { word: '正常', tone: 'ok' },
+  'insufficient-data': { word: 'o.status.insufficient-data', tone: 'dim' },
+  'unavailable': { word: 'o.status.unavailable', tone: 'dim' },
+  'suspect': { word: 'o.status.suspect', tone: 'warn' },
+  'held-out-unknown': { word: 'o.status.held-out-unknown', tone: 'warn' },
+  'ok': { word: 'o.status.ok', tone: 'ok' },
+  'available': { word: 'o.status.ok', tone: 'ok' },
 };
 export function blockStatusBadge(status) {
   return BLOCK_STATUS_BADGE[status] ?? { word: String(status ?? '—'), tone: 'dim' };
@@ -501,7 +503,7 @@ export function blockStatusBadge(status) {
 // 'harness-observed' / null → no badge — observed is the default posture, and an absent value
 // must never fabricate one (null-not-zero applied to provenance).
 export function statsProvenanceBadge(provenance) {
-  if (provenance === 'adapter-reported') return { word: '基于 runtime 自报信号（adapter-reported）', tone: 'warn' };
+  if (provenance === 'adapter-reported') return { word: 'o.prov.adapter-reported', tone: 'warn' };
   return null;
 }
 
@@ -518,8 +520,8 @@ export function expSkillCoverageView(stats) {
     coverageRatio: installed ? triggered / installed : null,
     everTriggered: sc.everTriggered ?? [],
     triggerRate: sc.triggerRate ?? [],
-    neverTriggered: { skills: sc.neverTriggered ?? [], hint: '有题目考它，但从未触发（可能是真的没用上）' },
-    notExercised: { skills: sc.notExercised ?? [], hint: '没有题目考它——没给机会，不是死重' },
+    neverTriggered: { skills: sc.neverTriggered ?? [], hint: 'o.cov.neverTriggered.hint' },
+    notExercised: { skills: sc.notExercised ?? [], hint: 'o.cov.notExercised.hint' },
   };
 }
 
@@ -538,9 +540,9 @@ export function expRefCoverageView(stats) {
       shipped: null, read: null, bySkill: null, unreadRefs: [], readCounts: rc.readCounts ?? {},
       outOfInventoryReads: null, // no inventory at all → "outside the inventory" is unknowable, not 0
       exemptions: {
-        artifactOnly: { refs: rc.artifactOnlyRefs ?? [], hint: '被权限拒绝、读不到，不算死重（内部名 permission-artifact）' },
-        excludedOnly: { refs: rc.excludedOnlyRefs ?? [], hint: '只在被排除的运行里读过，不算数（内部名 excluded-only）' },
-        notExercised: { skills: [], hint: '所属 skill 从未触发，没得到出场机会（内部名 not-exercised）' },
+        artifactOnly: { refs: rc.artifactOnlyRefs ?? [], hint: 'o.cov.exempt.artifactOnly.hint' },
+        excludedOnly: { refs: rc.excludedOnlyRefs ?? [], hint: 'o.cov.exempt.excludedOnly.hint' },
+        notExercised: { skills: [], hint: 'o.cov.exempt.notExercised.hint' },
       },
     };
   }
@@ -577,9 +579,9 @@ export function expRefCoverageView(stats) {
     unreadRefs,
     readCounts: rc.readCounts ?? {},
     exemptions: {
-      artifactOnly: { refs: rc.artifactOnlyRefs ?? [], hint: '被权限拒绝、读不到，不算死重（内部名 permission-artifact）' },
-      excludedOnly: { refs: rc.excludedOnlyRefs ?? [], hint: '只在被排除的运行里读过，不算数（内部名 excluded-only）' },
-      notExercised: { skills: bySkill.filter((s) => s.notExercised).map((s) => s.skill), hint: '所属 skill 从未触发，没得到出场机会（内部名 not-exercised）' },
+      artifactOnly: { refs: rc.artifactOnlyRefs ?? [], hint: 'o.cov.exempt.artifactOnly.hint' },
+      excludedOnly: { refs: rc.excludedOnlyRefs ?? [], hint: 'o.cov.exempt.excludedOnly.hint' },
+      notExercised: { skills: bySkill.filter((s) => s.notExercised).map((s) => s.skill), hint: 'o.cov.exempt.notExercised.hint' },
     },
   };
 }
@@ -676,7 +678,7 @@ export function buildExpStatsCard(experiment) {
   const state = expStatsState(experiment);
   const warnings = experiment?.statsWarnings ?? [];
   if (state === EXP_STATS_STATE.LEGACY) {
-    return { state, warnings, backfillHint: '这是旧实验，还没有统计数据——可运行 aiide stats 回填' };
+    return { state, warnings, backfillHint: 'o.stats.backfillHint' };
   }
   if (state === EXP_STATS_STATE.ERROR) {
     return { state, warnings, error: String(experiment?.stats?.error ?? experiment?.statsError ?? '') };
@@ -704,8 +706,9 @@ export function buildExpStatsCard(experiment) {
     // NEW top-level sections ride alongside — the sealed numbers never change. Once a supplemental
     // is already on screen the hint would be stale advice → suppressed. (v1's v2-level IN-SECTION
     // upgrades — caseJoin/refs — are NOT covered by this path; they need a rerun.)
+    // i18n: the renderer fills the {v}/{id} placeholders of key 'o.stats.upgradeHint' via tf().
     upgradeHint: staleSchema && !supplemental
-      ? `旧 schema（v${stats.schemaVersion ?? 1}）——新增统计节可补算：aiide stats ${experiment.id ?? '<id>'} --write（非权威并列，封存数字不变）`
+      ? { key: 'o.stats.upgradeHint', v: stats.schemaVersion ?? 1, id: experiment.id ?? '<id>' }
       : null,
     skillDetails: expSkillDetailRows(stats),
     schemaVersion: stats.schemaVersion ?? null,
@@ -721,7 +724,7 @@ export function buildExpStatsCard(experiment) {
         valid: stats.nCoverageValid ?? 0, excluded: stats.nExcluded ?? 0,
         heldOut: stats.heldOutExcluded ?? 0, noSession: stats.noSession ?? 0, unresolved: stats.nUnresolved ?? 0,
       },
-      note: '这是统计口径的有效样本（nCoverageValid），和记分卡的 n 不是一回事——记分卡把超时失败也算进 n',
+      note: 'o.stats.nCoverageNote',
     },
     skillCoverage: expSkillCoverageView(stats),
     refCoverage: expRefCoverageView(stats),
@@ -767,19 +770,21 @@ export function buildProbeBlockView(cli) {
 //     never says 成本 / 花在 (test-pinned over the whole serialized view model).
 
 // §3.0 null-trigger table → zh-hans reason copy (exported so the renderer and tests share one map).
+// reason enum → i18n key (the renderer resolves via t()). An unknown reason maps to the templated
+// 'o.nullReason.unknown' key, which the renderer fills with the raw reason via tf().
 export const NULL_REASON_COPY = {
-  'no-user-events-channel': '外部 runtime 无 userEvents 通道，无法归因',
-  'untagged-legacy-run': '旧版解析产物无来源标记（需重新 ingest 或新实验）',
-  'no-cwd': '无工作目录记录（外部 runtime）',
-  'no-stop-reason': '无 stop reason 记录',
-  'no-result-lines': '无 runtime 自报成本行（result 行）',
-  'no-sidechain-channel': '外部 runtime 无子代理通道',
-  'no-usage': '无 token 用量上报',
-  'no-valid-runs': '无有效样本',
-  'no-aggregatable-runs': '无可聚合样本',
+  'no-user-events-channel': 'o.nullReason.no-user-events-channel',
+  'untagged-legacy-run': 'o.nullReason.untagged-legacy-run',
+  'no-cwd': 'o.nullReason.no-cwd',
+  'no-stop-reason': 'o.nullReason.no-stop-reason',
+  'no-result-lines': 'o.nullReason.no-result-lines',
+  'no-sidechain-channel': 'o.nullReason.no-sidechain-channel',
+  'no-usage': 'o.nullReason.no-usage',
+  'no-valid-runs': 'o.nullReason.no-valid-runs',
+  'no-aggregatable-runs': 'o.nullReason.no-aggregatable-runs',
 };
 export function nullReasonCopy(reason) {
-  return NULL_REASON_COPY[reason] ?? `不可知（${reason ?? 'unknown'}）`;
+  return NULL_REASON_COPY[reason] ?? 'o.nullReason.unknown';
 }
 
 // Shared null-form guard. A v3 null section is `{ value: null, reason, …disclosures }` (expstats
@@ -798,15 +803,17 @@ function nullSectionView(section, nonAuthoritative) {
 }
 
 // §3.1 contextComposition. Title is MANDATED copy (增量归因非成本 — taxonomy §3.1 copy ban).
-export const CONTEXT_COMPOSITION_TITLE = 'context 由什么组成（增量归因，估算）';
+// Titles/labels are i18n keys; the renderer resolves them via t(). (Copy ban still holds: the
+// 'o.ctxComp.*' text is incremental-attribution wording, never a cost view — taxonomy §3.1.)
+export const CONTEXT_COMPOSITION_TITLE = 'o.ctxComp.title';
 export const CONTEXT_BUCKET_LABELS = {
-  baseline: '首轮基线（firstRoundBaseline）',
-  prevOut: '上轮输出（prevOut，精确）',
-  toolRes: '工具结果（toolRes，估算）',
-  injectedUser: '用户注入（injectedUser，估算）',
-  injectedHarness: 'harness 注入（injectedHarness，估算）',
-  skillBody: 'skill 正文（skillBody，估算）',
-  residualPos: '未归因正残差（residualPos，含 cache 位移）',
+  baseline: 'o.ctxComp.baseline',
+  prevOut: 'o.ctxComp.prevOut',
+  toolRes: 'o.ctxComp.toolRes',
+  injectedUser: 'o.ctxComp.injectedUser',
+  injectedHarness: 'o.ctxComp.injectedHarness',
+  skillBody: 'o.ctxComp.skillBody',
+  residualPos: 'o.ctxComp.residualPos',
 };
 export function contextCompositionView(section, { nonAuthoritative = false } = {}) {
   if (section == null) return null; // section absent (v2 embedded, no supplemental) → card omits it
@@ -832,7 +839,7 @@ export function contextCompositionView(section, { nonAuthoritative = false } = {
     rows,
     // compaction is an INDEPENDENT row — never one of the share buckets, never netted (§3.1)
     compaction: {
-      label: '压缩回收（compaction，独立披露——绝不与正桶净加总）',
+      label: 'o.ctxComp.compaction',
       runsWithCompaction: cp.runsWithCompaction ?? 0,
       absolute: cp.absolute ?? null,               // {mean,min,max} tokens
       shareOfDenominator: cp.shareOfDenominator ?? null,
@@ -843,7 +850,7 @@ export function contextCompositionView(section, { nonAuthoritative = false } = {
 }
 
 // §3.2 toolUsage — byKind main/sidechain split, mcp-server table, top tools, classification source.
-export const TOOL_USAGE_TITLE = '工具使用（toolUsage）';
+export const TOOL_USAGE_TITLE = 'o.toolUsage.title';
 export const TOOL_KIND_ORDER = ['skill', 'agent', 'mcp', 'builtin', 'other'];
 export function toolUsageView(section, { nonAuthoritative = false } = {}) {
   if (section == null) return null;
@@ -859,11 +866,11 @@ export function toolUsageView(section, { nonAuthoritative = false } = {}) {
     title: TOOL_USAGE_TITLE,
     byKind,
     scope: { main: section.scope?.main ?? 0, sidechain: section.scope?.sidechain ?? 0 },
-    scopeNote: '仅本节计入子代理（sidechain）轮；触发/截断/关联统计均只看主轮（main rounds only）',
+    scopeNote: 'o.toolUsage.scopeNote',
     kindSource: { declared: section.kindSource?.declared ?? 0, inferred: section.kindSource?.inferred ?? 0 },
-    kindSourceNote: '分类来源：自报（declared）优先，其余按名字推断（inferred）',
+    kindSourceNote: 'o.toolUsage.kindSourceNote',
     allowlistVersion: section.allowlistVersion ?? null,
-    allowlistNote: 'builtin/other 边界随 aiide 版本演化（allowlistVersion），跨版本对比需对齐',
+    allowlistNote: 'o.toolUsage.allowlistNote',
     mcpServers: Object.entries(section.byMcpServer ?? {})
       .map(([server, m]) => ({ server, calls: m.calls ?? 0, errors: m.errors ?? 0, denials: m.denials ?? 0 })),
     topTools: section.topTools ?? [],

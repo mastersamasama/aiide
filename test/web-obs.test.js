@@ -397,10 +397,10 @@ test('U8: red list = significant regressions first, then low-confidence badges; 
 
 test('U8: L1/L2/L3 outcome enums have the plain-Chinese gloss (S1 de-jargon map)', () => {
   assert.deepEqual(UPGRADE_ENUM_GLOSS, {
-    'ok': '正常', 'wrong-route': '路由错', 'executed-after-confirm': '确认后执行',
-    'asked-and-halted': '问完即停', 'flow-incomplete': '确认后中断', 'permission-artifact': '权限拒绝',
+    'ok': 'o.gloss.ok', 'wrong-route': 'o.gloss.wrong-route', 'executed-after-confirm': 'o.gloss.executed-after-confirm',
+    'asked-and-halted': 'o.gloss.asked-and-halted', 'flow-incomplete': 'o.gloss.flow-incomplete', 'permission-artifact': 'o.gloss.permission-artifact',
   });
-  assert.equal(upgradeEnumGloss('flow-incomplete'), '确认后中断');
+  assert.equal(upgradeEnumGloss('flow-incomplete'), 'o.gloss.flow-incomplete');
   assert.equal(upgradeEnumGloss('unknown-token'), 'unknown-token'); // unmapped → passthrough, never throws
 });
 
@@ -539,14 +539,14 @@ test('EXP: three-state — no stats key = legacy (backfill hint), stats present 
   assert.equal(expStatsState({ stats: EXP_STATS }), EXP_STATS_STATE.FULL);
   const legacy = buildExpStatsCard({ id: 'old-exp' });
   assert.equal(legacy.state, 'legacy');
-  assert.match(legacy.backfillHint, /aiide stats 回填/);
+  assert.equal(legacy.backfillHint, 'o.stats.backfillHint');
 });
 
 test('EXP: block status renders as a WORD badge, never a ratio; four honest states covered', () => {
-  assert.deepEqual(blockStatusBadge('insufficient-data'), { word: '样本不足', tone: 'dim' });
-  assert.deepEqual(blockStatusBadge('unavailable'), { word: '不可用', tone: 'dim' });
-  assert.deepEqual(blockStatusBadge('suspect'), { word: '可疑', tone: 'warn' });
-  assert.deepEqual(blockStatusBadge('held-out-unknown'), { word: '留出未知', tone: 'warn' });
+  assert.deepEqual(blockStatusBadge('insufficient-data'), { word: 'o.status.insufficient-data', tone: 'dim' });
+  assert.deepEqual(blockStatusBadge('unavailable'), { word: 'o.status.unavailable', tone: 'dim' });
+  assert.deepEqual(blockStatusBadge('suspect'), { word: 'o.status.suspect', tone: 'warn' });
+  assert.deepEqual(blockStatusBadge('held-out-unknown'), { word: 'o.status.held-out-unknown', tone: 'warn' });
   assert.equal(blockStatusBadge('some-future-status').word, 'some-future-status');   // passthrough, never throws
 });
 
@@ -556,9 +556,9 @@ test('EXP M1: coverage ratio + neverTriggered vs notExercised carry DIFFERENT pl
   assert.equal(v.triggered, 2);            // swap + price triggered
   assert.equal(v.coverageRatio, 0.5);
   assert.deepEqual(v.neverTriggered.skills, ['onchain.bridge']);
-  assert.match(v.neverTriggered.hint, /有题目考它，但从未触发/);
+  assert.equal(v.neverTriggered.hint, 'o.cov.neverTriggered.hint');
   assert.deepEqual(v.notExercised.skills, ['onchain.safety']);
-  assert.match(v.notExercised.hint, /没有题目考它/);
+  assert.equal(v.notExercised.hint, 'o.cov.notExercised.hint');
   // null-not-zero: no installed skills → ratio null, not 0
   assert.equal(expSkillCoverageView({ skillCoverage: { installed: [], everTriggered: [] } }).coverageRatio, null);
 });
@@ -573,7 +573,7 @@ test('EXP M2: unread refs flagged only after the three exemption buckets are sur
   assert.deepEqual(v.exemptions.artifactOnly.refs, ['onchain.swap/references/perm-blocked.md']);
   assert.deepEqual(v.exemptions.excludedOnly.refs, ['onchain.price/references/excluded-only.md']);
   assert.deepEqual(v.exemptions.notExercised.skills, ['onchain.bridge']);   // bridge never triggered
-  assert.match(v.exemptions.artifactOnly.hint, /被权限拒绝/);
+  assert.equal(v.exemptions.artifactOnly.hint, 'o.cov.exempt.artifactOnly.hint');
 });
 
 test('EXP: probe three-state — null = 未配置探针; array = per-tool coverage + hypothesis sequences', () => {
@@ -583,7 +583,7 @@ test('EXP: probe three-state — null = 未配置探针; array = per-tool covera
   assert.equal(v.tools[0].tool, 'onchainos');
   assert.deepEqual(v.tools[0].coverage.unused, ['balance']);                  // declared-never-invoked
   assert.deepEqual(v.tools[0].coverage.undeclaredInvoked, ['order cancel']);  // surface-drift
-  assert.equal(v.tools[0].coverageStatus.word, '正常');
+  assert.equal(v.tools[0].coverageStatus.word, 'o.status.ok');
   assert.equal(v.tools[0].sequences[0].hypothesis, true);                     // always a hypothesis
   assert.equal(v.tools[0].sequences[0].distinctCases, 4);
 });
@@ -601,7 +601,7 @@ test('EXP: full card spells out nCoverageValid ≠ scorecard n + sample-size bre
   assert.equal(card.state, 'full');
   assert.equal(card.sampleSize.nCoverageValid, 13);
   assert.deepEqual(card.sampleSize.breakdown, { valid: 13, excluded: 2, heldOut: 2, noSession: 1, unresolved: 1 });
-  assert.match(card.sampleSize.note, /和记分卡的 n 不是一回事/);
+  assert.equal(card.sampleSize.note, 'o.stats.nCoverageNote');
   assert.ok(card.skillCoverage && card.refCoverage && card.probes && card.proximity);
 });
 
@@ -614,7 +614,7 @@ test('probe block: null report.probes → no block; a real block carries per-arm
   assert.equal(v.status, 'ok');
   assert.equal(v.tripwired, false);
   assert.equal(v.arms.length, 2);
-  assert.equal(v.arms[0].tools[0].coverageStatus.word, '正常');
+  assert.equal(v.arms[0].tools[0].coverageStatus.word, 'o.status.ok');
   assert.ok(v.arms[0].proximityTop.length >= 1);
   // sequence cards are always hypotheses, flattened with their arm
   assert.ok(v.sequences.length >= 1 && v.sequences.every((s) => s.hypothesis === true));
@@ -663,10 +663,10 @@ test('EXP A3: three-state machine — statsAuthority drives FULL; stats:{error} 
 });
 
 test('EXP A3: authority badge — embedded 权威, sidecar 回填(非权威); wrapper warnings + sidecarIgnored on the card', () => {
-  assert.deepEqual(statsAuthorityBadge('embedded'), { word: '权威（封存时计算）', tone: 'ok' });
-  assert.deepEqual(statsAuthorityBadge('authoritative-embedded'), { word: '权威（封存时计算）', tone: 'ok' });
-  assert.deepEqual(statsAuthorityBadge('non-authoritative-recompute'), { word: '回填（非权威）', tone: 'warn' });
-  assert.deepEqual(statsAuthorityBadge('recomputed-no-embedded'), { word: '回填（非权威）', tone: 'warn' });
+  assert.deepEqual(statsAuthorityBadge('embedded'), { word: 'o.auth.embedded', tone: 'ok' });
+  assert.deepEqual(statsAuthorityBadge('authoritative-embedded'), { word: 'o.auth.embedded', tone: 'ok' });
+  assert.deepEqual(statsAuthorityBadge('non-authoritative-recompute'), { word: 'o.auth.backfill', tone: 'warn' });
+  assert.deepEqual(statsAuthorityBadge('recomputed-no-embedded'), { word: 'o.auth.backfill', tone: 'warn' });
   assert.equal(statsAuthorityBadge(null), null);   // no resolver ran → no badge, not a fake one
   const card = buildExpStatsCard({
     stats: EXP_STATS, statsAuthority: 'recomputed-no-embedded',
@@ -674,7 +674,7 @@ test('EXP A3: authority badge — embedded 权威, sidecar 回填(非权威); wr
   });
   assert.equal(card.state, 'full');
   assert.equal(card.authority, 'recomputed-no-embedded');
-  assert.equal(card.authorityBadge.word, '回填（非权威）');
+  assert.equal(card.authorityBadge.word, 'o.auth.backfill');
   assert.deepEqual(card.warnings, ['1 rep(s) unresolved']);   // wrapper warnings 原文透传
   const ign = buildExpStatsCard({ stats: EXP_STATS, statsAuthority: 'embedded', sidecarIgnored: true });
   assert.equal(ign.sidecarIgnored, true);                     // → 存在被忽略的重算 sidecar 资讯注记
@@ -764,11 +764,11 @@ test('EXP §S: v1 embedded stats (no caseJoin/refs) → 旧 schema upgrade hint,
   assert.equal(card.legacySchema, true);
   // taxonomy §3.0 真路徑 (r4 F-4-03): the hint names the REAL supplemental pipeline — plain --write
   // recomputes a non-authoritative sidecar whose NEW sections ride alongside the sealed numbers.
-  assert.equal(card.upgradeHint, '旧 schema（v1）——新增统计节可补算：aiide stats exp-old --write（非权威并列，封存数字不变）');
+  assert.deepEqual(card.upgradeHint, { key: 'o.stats.upgradeHint', v: 1, id: 'exp-old' });
   assert.deepEqual(card.skillDetails, []);
   // v2 is stale against the v3 closed set → same real-path hint with its own version
-  assert.equal(buildExpStatsCard({ id: 'exp-v2', stats: EXP_STATS }).upgradeHint,
-    '旧 schema（v2）——新增统计节可补算：aiide stats exp-v2 --write（非权威并列，封存数字不变）');
+  assert.deepEqual(buildExpStatsCard({ id: 'exp-v2', stats: EXP_STATS }).upgradeHint,
+    { key: 'o.stats.upgradeHint', v: 2, id: 'exp-v2' });
   // current schema → no hint
   assert.equal(buildExpStatsCard({ stats: { ...EXP_STATS, schemaVersion: 3 } }).upgradeHint, null);
 });
@@ -781,10 +781,10 @@ test('EXP supplemental (taxonomy §3.0): own badge + own sections channel, NEVER
   const card = buildExpStatsCard({ id: 'e1', stats: EXP_STATS, statsAuthority: 'embedded', sidecarIgnored: true, supplemental });
   // supplemental channel: verbatim sections + the NON-authoritative badge (existing 回填 style)
   assert.deepEqual(card.supplementalSections, supplemental.sections);
-  assert.deepEqual(card.supplementalBadge, { word: '回填（非权威）', tone: 'warn' });
+  assert.deepEqual(card.supplementalBadge, { word: 'o.auth.backfill', tone: 'warn' });
   assert.deepEqual(card.supplementalSchema, { from: 2, to: 3 });
   // the authoritative channel keeps its OWN badge/schema — never the supplemental's
-  assert.deepEqual(card.authorityBadge, { word: '权威（封存时计算）', tone: 'ok' });
+  assert.deepEqual(card.authorityBadge, { word: 'o.auth.embedded', tone: 'ok' });
   assert.equal(card.schemaVersion, 2);
   assert.equal(card.sidecarIgnored, true);          // coexists: authoritative numbers ignored the sidecar
   // supplemental already on screen → the backfill hint would be stale advice → suppressed
@@ -861,13 +861,13 @@ test('EXP Stage4: refsNote adapter-declared — triggered skill absent from the 
 });
 
 test('EXP Stage4: provenance badge — adapter-reported → badge data; harness-observed/null → no badge (never fabricated)', () => {
-  assert.deepEqual(statsProvenanceBadge('adapter-reported'), { word: '基于 runtime 自报信号（adapter-reported）', tone: 'warn' });
+  assert.deepEqual(statsProvenanceBadge('adapter-reported'), { word: 'o.prov.adapter-reported', tone: 'warn' });
   assert.equal(statsProvenanceBadge('harness-observed'), null);
   assert.equal(statsProvenanceBadge(null), null);
   assert.equal(statsProvenanceBadge(undefined), null);
   const card = buildExpStatsCard({ stats: { ...EXP_STATS, provenance: 'adapter-reported' } });
   assert.equal(card.provenance, 'adapter-reported');
-  assert.equal(card.provenanceBadge.word, '基于 runtime 自报信号（adapter-reported）');
+  assert.equal(card.provenanceBadge.word, 'o.prov.adapter-reported');
   assert.equal(card.provenanceBadge.tone, 'warn');
   // fixture carries no provenance → null passthrough, no badge
   const plain = buildExpStatsCard({ stats: EXP_STATS });
@@ -963,37 +963,37 @@ const HEALTH_SECTIONS = {
 
 test('T1S6: NULL_REASON_COPY covers the §3.0 null-trigger table verbatim; unknown reason degrades honestly', () => {
   assert.deepEqual(NULL_REASON_COPY, {
-    'no-user-events-channel': '外部 runtime 无 userEvents 通道，无法归因',
-    'untagged-legacy-run': '旧版解析产物无来源标记（需重新 ingest 或新实验）',
-    'no-cwd': '无工作目录记录（外部 runtime）',
-    'no-stop-reason': '无 stop reason 记录',
-    'no-result-lines': '无 runtime 自报成本行（result 行）',
-    'no-sidechain-channel': '外部 runtime 无子代理通道',
-    'no-usage': '无 token 用量上报',
-    'no-valid-runs': '无有效样本',
-    'no-aggregatable-runs': '无可聚合样本',
+    'no-user-events-channel': 'o.nullReason.no-user-events-channel',
+    'untagged-legacy-run': 'o.nullReason.untagged-legacy-run',
+    'no-cwd': 'o.nullReason.no-cwd',
+    'no-stop-reason': 'o.nullReason.no-stop-reason',
+    'no-result-lines': 'o.nullReason.no-result-lines',
+    'no-sidechain-channel': 'o.nullReason.no-sidechain-channel',
+    'no-usage': 'o.nullReason.no-usage',
+    'no-valid-runs': 'o.nullReason.no-valid-runs',
+    'no-aggregatable-runs': 'o.nullReason.no-aggregatable-runs',
   });
-  assert.equal(nullReasonCopy('some-future-reason'), '不可知（some-future-reason）'); // passthrough, never throws
-  assert.equal(nullReasonCopy(null), '不可知（unknown）');
+  assert.equal(nullReasonCopy('some-future-reason'), 'o.nullReason.unknown'); // unknown → templated key, renderer fills {reason}
+  assert.equal(nullReasonCopy(null), 'o.nullReason.unknown');
 });
 
 test('T1S6 contextCompositionView: share rows + independent compaction + disclosures; estimate always flagged', () => {
   const v = contextCompositionView(CC_SECTION);
   assert.equal(v.null, false);
   assert.equal(v.nonAuthoritative, false);
-  assert.equal(v.title, 'context 由什么组成（增量归因，估算）'); // §3.1 MANDATED title — attribution, not cost
+  assert.equal(v.title, 'o.ctxComp.title'); // §3.1 MANDATED title key — attribution, not cost (copy in the dict)
   assert.equal(v.estimate, true);
   // all seven buckets in the fixed order, share dist passthrough (percent + range for the renderer)
   assert.deepEqual(v.rows.map((r) => r.key),
     ['baseline', 'prevOut', 'toolRes', 'injectedUser', 'injectedHarness', 'skillBody', 'residualPos']);
   assert.deepEqual(v.rows[0].share, { mean: 0.42, min: 0.3, max: 0.5 });
-  assert.match(v.rows[1].label, /上轮输出（prevOut，精确）/);
-  assert.match(v.rows[4].label, /harness 注入（injectedHarness，估算）/);
+  assert.equal(v.rows[1].label, 'o.ctxComp.prevOut');
+  assert.equal(v.rows[4].label, 'o.ctxComp.injectedHarness');
   // compaction is an INDEPENDENT row — never one of the share buckets (§3.1: 永不净加总/入分子)
   assert.equal(v.rows.some((r) => r.key === 'compaction'), false);
   assert.equal(v.compaction.runsWithCompaction, 1);
   assert.deepEqual(v.compaction.absolute, { mean: 2100, min: 0, max: 8400 });
-  assert.match(v.compaction.label, /独立披露/);
+  assert.equal(v.compaction.label, 'o.ctxComp.compaction');
   // n / skip disclosures + peak + max-contribution run
   assert.equal(v.n, 4);
   assert.equal(v.untaggedLegacyRuns, 1);
@@ -1020,12 +1020,12 @@ test('T1S6 contextCompositionView null forms: honest reason copy + disclosure pa
   const gated = contextCompositionView({ value: null, reason: 'no-user-events-channel' });
   assert.equal(gated.null, true);
   assert.equal(gated.reason, 'no-user-events-channel');
-  assert.equal(gated.reasonCopy, '外部 runtime 无 userEvents 通道，无法归因');
+  assert.equal(gated.reasonCopy, 'o.nullReason.no-user-events-channel');
   const legacy = contextCompositionView({ value: null, reason: 'untagged-legacy-run', untaggedLegacyRuns: 3 }, { nonAuthoritative: true });
-  assert.equal(legacy.reasonCopy, '旧版解析产物无来源标记（需重新 ingest 或新实验）');
+  assert.equal(legacy.reasonCopy, 'o.nullReason.untagged-legacy-run');
   assert.equal(legacy.disclosures.untaggedLegacyRuns, 3);  // extra nullSection counts ride through
   assert.equal(legacy.nonAuthoritative, true);
-  assert.equal(contextCompositionView({ value: null, reason: 'no-aggregatable-runs' }).reasonCopy, '无可聚合样本');
+  assert.equal(contextCompositionView({ value: null, reason: 'no-aggregatable-runs' }).reasonCopy, 'o.nullReason.no-aggregatable-runs');
 });
 
 test('T1S6 toolUsageView: byKind main/sidechain split in fixed order, mcp server table, kindSource + allowlist disclosure', () => {
@@ -1037,17 +1037,17 @@ test('T1S6 toolUsageView: byKind main/sidechain split in fixed order, mcp server
   const mcp = v.byKind.find((k) => k.kind === 'mcp');
   assert.deepEqual(mcp, { kind: 'mcp', main: 3, sidechain: 1, total: 4 });  // main/sidechain 分列
   assert.deepEqual(v.scope, { main: 19, sidechain: 3 });
-  assert.match(v.scopeNote, /仅本节计入子代理/);           // §3.2 caliber sentence on the card
+  assert.equal(v.scopeNote, 'o.toolUsage.scopeNote');      // §3.2 caliber sentence on the card (copy in the dict)
   assert.deepEqual(v.kindSource, { declared: 4, inferred: 18 });
   assert.equal(v.allowlistVersion, 'aiide-0.1.0');
-  assert.match(v.allowlistNote, /跨版本对比需对齐/);       // §4 honest boundary disclosure
+  assert.equal(v.allowlistNote, 'o.toolUsage.allowlistNote'); // §4 honest boundary disclosure
   assert.deepEqual(v.mcpServers, [{ server: 'plugin_oki-team_oki-team', calls: 4, errors: 1, denials: 0 }]);
   assert.equal(v.topTools[0].name, 'Bash');
   assert.equal(toolUsageView(TU_SECTION, { nonAuthoritative: true }).nonAuthoritative, true);
   // null form (no valid runs) + absent section
   const nul = toolUsageView({ value: null, reason: 'no-valid-runs' });
   assert.equal(nul.null, true);
-  assert.equal(nul.reasonCopy, '无有效样本');
+  assert.equal(nul.reasonCopy, 'o.nullReason.no-valid-runs');
   assert.equal(toolUsageView(null), null);
 });
 
@@ -1066,7 +1066,7 @@ test('T1S6 fileTargetsView: read/write三桶 + pathless disclosure outside the b
   assert.equal(v.noCwdRuns, 1);
   const nul = fileTargetsView({ value: null, reason: 'no-cwd' }, { nonAuthoritative: true });
   assert.equal(nul.null, true);
-  assert.equal(nul.reasonCopy, '无工作目录记录（外部 runtime）');
+  assert.equal(nul.reasonCopy, 'o.nullReason.no-cwd');
   assert.equal(nul.nonAuthoritative, true);
   assert.equal(fileTargetsView(null), null);
 });
@@ -1118,12 +1118,12 @@ test('T1S6 runHealthView: per-segment null reasons are independent — a null ca
     statsHealth: HEALTH_SECTIONS.statsHealth,
   }, { nonAuthoritative: true });
   assert.equal(v.cache.null, true);
-  assert.equal(v.cache.reasonCopy, '无 token 用量上报');
+  assert.equal(v.cache.reasonCopy, 'o.nullReason.no-usage');
   assert.equal(v.cache.disclosures.skippedRounds, 4);
-  assert.equal(v.truncation.reasonCopy, '无 stop reason 记录');
+  assert.equal(v.truncation.reasonCopy, 'o.nullReason.no-stop-reason');
   assert.equal(v.truncation.disclosures.unknownStopReason, 12);
-  assert.equal(v.sidechain.reasonCopy, '外部 runtime 无子代理通道');
-  assert.equal(v.selfReport.reasonCopy, '无 runtime 自报成本行（result 行）');
+  assert.equal(v.sidechain.reasonCopy, 'o.nullReason.no-sidechain-channel');
+  assert.equal(v.selfReport.reasonCopy, 'o.nullReason.no-result-lines');
   // the knowable segment still renders in full alongside four null neighbours
   assert.equal(v.statsHealth.null, false);
   assert.equal(v.statsHealth.retriedThenSucceeded, 1);
@@ -1152,14 +1152,14 @@ test('T1S6 dashboard wiring: 运行观测/运行健康 cards render after the co
   assert.match(html, /\(stats\.schemaVersion \?\? 1\) >= 3 && key in stats/);
   assert.match(html, /e\.supplemental\?\.sections/);
   // supplemental-sourced segments carry the S5-style 回填（非权威） badge, per segment
-  assert.match(html, /const supBadge = \(on\) => on \? ` <span class="badge warn">回填（非权威）<\/span>` : ''/);
+  assert.match(html, /const supBadge = \(on\) => on \? ` <span class="badge warn">\$\{t\('o\.auth\.backfill'\)\}<\/span>` : ''/);
   assert.match(html, /supBadge\(ccV\.nonAuthoritative\)/);
   assert.match(html, /supBadge\(tuV\.nonAuthoritative\)/);
   assert.match(html, /supBadge\(ftV\.nonAuthoritative\)/);
   assert.match(html, /supBadge\(sv\.nonAuthoritative\)/);   // run-health segments
   // null sections render the honest reason line (zh copy + canonical reason code), never a blank
   assert.match(html, /const nullReasonLine = \(v\) =>/);
-  assert.match(html, /fmt\.esc\(v\.reasonCopy\)/);
+  assert.match(html, /tf\(v\.reasonCopy/);
   // estimate badge on the contextComposition segment (估算恒标)
   assert.match(html, /估算（estimate）/);
   // fileTargets is folded into the 运行观测 card (inside runObsPanel, not its own panel)

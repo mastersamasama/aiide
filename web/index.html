@@ -7,9 +7,28 @@
 <link rel="icon" href="/favicon.ico">
 <style>
   :root {
+    color-scheme: dark light;
     --bg: #0d1117; --panel: #161b22; --panel2: #1c2129; --border: #2d333b;
     --fg: #e6edf3; --dim: #8b949e; --accent: #58a6ff; --ok: #3fb950; --warn: #d29922;
     --err: #f85149; --purple: #bc8cff; --cyan: #39c5cf;
+    /* per-badge border tints */
+    --border-skill: #4a3a63; --border-err: #6e2b2b; --border-ok: #2b5e37; --border-warn: #5e4a1a;
+    --user-turn-border: #3d5a4e; --user-turn-bg: rgba(63,185,80,0.04);
+    --shadow: rgba(0,0,0,.55);
+    /* co-read heatmap ramp (low→high) + on-cell label, read by ECharts via gv() */
+    --heat0: #161b22; --heat1: #1f6feb; --heat2: #58a6ff; --heat3: #cae8ff; --heat-label: #0d1117;
+  }
+  /* Light theme: follows the OS/browser prefers-color-scheme automatically. GitHub-light palette. */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff; --panel: #f6f8fa; --panel2: #eaeef2; --border: #d0d7de;
+      --fg: #1f2328; --dim: #59636e; --accent: #0969da; --ok: #1a7f37; --warn: #9a6700;
+      --err: #cf222e; --purple: #8250df; --cyan: #1b7c83;
+      --border-skill: #d8c4f0; --border-err: #f3c0c4; --border-ok: #b4dcb9; --border-warn: #e8d59a;
+      --user-turn-border: #92c8a8; --user-turn-bg: rgba(26,127,55,0.06);
+      --shadow: rgba(31,35,40,.18);
+      --heat0: #eaeef2; --heat1: #cae8ff; --heat2: #79c0ff; --heat3: #2188ff; --heat-label: #0d1117;
+    }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 ui-monospace, "Cascadia Code", Consolas, "Microsoft YaHei", monospace; }
@@ -23,10 +42,10 @@
   .lang button.on { color: var(--fg); border-color: var(--accent); }
   main { padding: 20px 24px; max-width: 1280px; margin: 0 auto; }
   .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; border: 1px solid var(--border); background: var(--panel2); color: var(--dim); margin: 0 3px 3px 0; }
-  .badge.skill { color: var(--purple); border-color: #4a3a63; }
-  .badge.err { color: var(--err); border-color: #6e2b2b; }
-  .badge.ok { color: var(--ok); border-color: #2b5e37; }
-  .badge.warn { color: var(--warn); border-color: #5e4a1a; }
+  .badge.skill { color: var(--purple); border-color: var(--border-skill); }
+  .badge.err { color: var(--err); border-color: var(--border-err); }
+  .badge.ok { color: var(--ok); border-color: var(--border-ok); }
+  .badge.warn { color: var(--warn); border-color: var(--border-warn); }
   table { border-collapse: collapse; width: 100%; margin-top: 12px; }
   th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--dim); font-weight: normal; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
@@ -40,7 +59,7 @@
   .muted { color: var(--dim); font-size: 12px; }
   .round { border-left: 3px solid var(--border); padding: 6px 0 6px 14px; margin: 4px 0; }
   .round.skill-round { border-left-color: var(--purple); }
-  .round.user-turn { border-left-color: #3d5a4e; background: rgba(63,185,80,0.04); border-radius: 0 6px 6px 0; }
+  .round.user-turn { border-left-color: var(--user-turn-border); background: var(--user-turn-bg); border-radius: 0 6px 6px 0; }
   details.round > summary { list-style: none; cursor: pointer; }
   details.round > summary::before { content: '▸ '; color: var(--dim); }
   details.round[open] > summary::before { content: '▾ '; }
@@ -71,7 +90,7 @@
     width: max-content; max-width: min(420px, 78vw);
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px;
     white-space: pre-wrap; font-size: 12px; line-height: 1.55; color: var(--dim); font-weight: normal;
-    box-shadow: 0 8px 28px rgba(0,0,0,.55); }
+    box-shadow: 0 8px 28px var(--shadow); }
   .tip:hover .tippop, .tip:focus-within .tippop { display: block; }
   .tip.below .tippop { bottom: auto; top: calc(100% + 6px); }
   .tip.right .tippop { left: auto; right: 0; }
@@ -360,6 +379,48 @@ const I18N = {
     'md.source.cli': '--meta', 'md.source.suite': 'suite file', 'md.source.defaults': 'settings.json', 'md.source.captured': 'auto-captured',
     'panel.diff': 'metadata diff', 'diff.showAll': 'show all', 'diff.onlyDiff': 'differences only',
     'diff.none': '✓ no metadata differences', 'diff.count': 'dimensions differ', 'th.dimension': 'dimension',
+    // ---- obs.js-derived display copy (obs.js returns these keys; the text lives here so both languages stay in lockstep) ----
+    'o.gloss.ok': 'OK', 'o.gloss.wrong-route': 'wrong route', 'o.gloss.executed-after-confirm': 'executed after confirm',
+    'o.gloss.asked-and-halted': 'asked, then halted', 'o.gloss.flow-incomplete': 'flow incomplete', 'o.gloss.permission-artifact': 'permission denied',
+    'o.auth.embedded': 'authoritative (sealed)', 'o.auth.backfill': 'backfilled (non-authoritative)',
+    'o.status.insufficient-data': 'too few samples', 'o.status.unavailable': 'unavailable', 'o.status.suspect': 'suspect',
+    'o.status.held-out-unknown': 'held-out (unknown)', 'o.status.ok': 'OK',
+    'o.prov.adapter-reported': 'from the runtime’s own signal (adapter-reported)',
+    'o.cov.neverTriggered.label': 'never triggered', 'o.cov.neverTriggered.hint': 'a task tests it, yet it never fired — it may genuinely be going unused',
+    'o.cov.notExercised.label': 'no task tests it', 'o.cov.notExercised.hint': 'no task exercises it — it never got a chance, so this is not dead weight',
+    'o.cov.exempt.artifactOnly.label': 'permission-denied', 'o.cov.exempt.artifactOnly.hint': 'blocked by a permission denial and never readable — not dead weight (internal name: permission-artifact)',
+    'o.cov.exempt.excludedOnly.label': 'read only in excluded runs', 'o.cov.exempt.excludedOnly.hint': 'only ever read inside excluded runs, so it does not count (internal name: excluded-only)',
+    'o.cov.exempt.notExercised.label': 'skill never triggered', 'o.cov.exempt.notExercised.hint': 'its owning skill never triggered, so it never got a turn (internal name: not-exercised)',
+    'o.cov.commandSurface': 'command-surface coverage',
+    'o.stats.backfillHint': 'This is an older experiment with no stats yet — run aiide stats to backfill.',
+    'o.stats.nCoverageNote': 'This is the stats-valid sample (nCoverageValid) — not the same as the scorecard’s n, which also counts timeout failures.',
+    'o.stats.upgradeHint': 'Old schema (v{v}) — the new stats sections can be recomputed: aiide stats {id} --write (a non-authoritative companion; the sealed numbers never change).',
+    'o.nullReason.no-user-events-channel': 'external runtime has no userEvents channel — nothing to attribute to',
+    'o.nullReason.untagged-legacy-run': 'legacy parse output has no source tag (re-ingest, or run a fresh experiment)',
+    'o.nullReason.no-cwd': 'no working-directory record (external runtime)',
+    'o.nullReason.no-stop-reason': 'no stop-reason record',
+    'o.nullReason.no-result-lines': 'no runtime-reported cost lines (result lines)',
+    'o.nullReason.no-sidechain-channel': 'external runtime has no sub-agent channel',
+    'o.nullReason.no-usage': 'no token usage reported',
+    'o.nullReason.no-valid-runs': 'no valid samples',
+    'o.nullReason.no-aggregatable-runs': 'no aggregatable samples',
+    'o.nullReason.unknown': 'unknowable ({reason})',
+    'o.ctxComp.title': 'what context is made of (incremental attribution, estimated)',
+    'o.ctxComp.baseline': 'first-round baseline (firstRoundBaseline)',
+    'o.ctxComp.prevOut': 'previous output (prevOut, exact)',
+    'o.ctxComp.toolRes': 'tool results (toolRes, estimated)',
+    'o.ctxComp.injectedUser': 'user-injected (injectedUser, estimated)',
+    'o.ctxComp.injectedHarness': 'harness-injected (injectedHarness, estimated)',
+    'o.ctxComp.skillBody': 'skill body (skillBody, estimated)',
+    'o.ctxComp.residualPos': 'unattributed positive residual (residualPos, includes cache shift)',
+    'o.ctxComp.compaction': 'compaction reclaim (disclosed on its own — never net-summed with the positive buckets)',
+    'o.toolUsage.title': 'tool usage (toolUsage)',
+    'o.toolUsage.scopeNote': 'only this section counts sub-agent (sidechain) rounds; trigger / truncation / correlation stats are main-rounds-only',
+    'o.toolUsage.kindSourceNote': 'classification source: self-reported (declared) first, the rest inferred by name (inferred)',
+    'o.toolUsage.allowlistNote': 'the builtin/other boundary shifts with the aiide version (allowlistVersion) — align it before comparing across versions',
+    'o.cov.panelTitle': 'coverage stats', 'o.cov.statsFailed': 'stats computation failed: ', 'o.cov.signal': 'signal',
+    'o.gloss.cliSink': 'cli sink', 'o.badge.estimate': 'estimated',
+    'o.stats.breakdown': 'split', 'o.stats.bd.valid': 'valid', 'o.stats.bd.excluded': 'excluded', 'o.stats.bd.heldOut': 'held-out', 'o.stats.bd.noSession': 'no session', 'o.stats.bd.unresolved': 'unresolved',
   },
   'zh-hans': {
     'subtitle': '· 本地优先的 agent 可观测',
@@ -554,12 +615,56 @@ const I18N = {
     'md.source.cli': '--meta 命令行', 'md.source.suite': 'suite 文件', 'md.source.defaults': 'settings.json', 'md.source.captured': '自动探测',
     'panel.diff': 'metadata 对比', 'diff.showAll': '显示全部', 'diff.onlyDiff': '仅差异',
     'diff.none': '✓ metadata 无差异', 'diff.count': '个维度不同', 'th.dimension': '维度',
+    // ---- obs.js 派生的展示文案（obs.js 只回传 key，文案集中在此，两种语言同步维护）----
+    'o.gloss.ok': '正常', 'o.gloss.wrong-route': '路由错', 'o.gloss.executed-after-confirm': '确认后执行',
+    'o.gloss.asked-and-halted': '问完即停', 'o.gloss.flow-incomplete': '确认后中断', 'o.gloss.permission-artifact': '权限拒绝',
+    'o.auth.embedded': '权威（封存时计算）', 'o.auth.backfill': '回填（非权威）',
+    'o.status.insufficient-data': '样本不足', 'o.status.unavailable': '不可用', 'o.status.suspect': '可疑',
+    'o.status.held-out-unknown': '留出未知', 'o.status.ok': '正常',
+    'o.prov.adapter-reported': '基于 runtime 自报信号（adapter-reported）',
+    'o.cov.neverTriggered.label': '从未触发', 'o.cov.neverTriggered.hint': '有题目考它，但从未触发（可能是真的没用上）',
+    'o.cov.notExercised.label': '没题目考它', 'o.cov.notExercised.hint': '没有题目考它——没给机会，不是死重',
+    'o.cov.exempt.artifactOnly.label': '权限拒绝', 'o.cov.exempt.artifactOnly.hint': '被权限拒绝、读不到，不算死重（内部名 permission-artifact）',
+    'o.cov.exempt.excludedOnly.label': '仅排除运行读过', 'o.cov.exempt.excludedOnly.hint': '只在被排除的运行里读过，不算数（内部名 excluded-only）',
+    'o.cov.exempt.notExercised.label': 'skill 未触发', 'o.cov.exempt.notExercised.hint': '所属 skill 从未触发，没得到出场机会（内部名 not-exercised）',
+    'o.cov.commandSurface': '命令面覆盖',
+    'o.stats.backfillHint': '这是旧实验，还没有统计数据——可运行 aiide stats 回填',
+    'o.stats.nCoverageNote': '这是统计口径的有效样本（nCoverageValid），和记分卡的 n 不是一回事——记分卡把超时失败也算进 n',
+    'o.stats.upgradeHint': '旧 schema（v{v}）——新增统计节可补算：aiide stats {id} --write（非权威并列，封存数字不变）',
+    'o.nullReason.no-user-events-channel': '外部 runtime 无 userEvents 通道，无法归因',
+    'o.nullReason.untagged-legacy-run': '旧版解析产物无来源标记（需重新 ingest 或新实验）',
+    'o.nullReason.no-cwd': '无工作目录记录（外部 runtime）',
+    'o.nullReason.no-stop-reason': '无 stop reason 记录',
+    'o.nullReason.no-result-lines': '无 runtime 自报成本行（result 行）',
+    'o.nullReason.no-sidechain-channel': '外部 runtime 无子代理通道',
+    'o.nullReason.no-usage': '无 token 用量上报',
+    'o.nullReason.no-valid-runs': '无有效样本',
+    'o.nullReason.no-aggregatable-runs': '无可聚合样本',
+    'o.nullReason.unknown': '不可知（{reason}）',
+    'o.ctxComp.title': 'context 由什么组成（增量归因，估算）',
+    'o.ctxComp.baseline': '首轮基线（firstRoundBaseline）',
+    'o.ctxComp.prevOut': '上轮输出（prevOut，精确）',
+    'o.ctxComp.toolRes': '工具结果（toolRes，估算）',
+    'o.ctxComp.injectedUser': '用户注入（injectedUser，估算）',
+    'o.ctxComp.injectedHarness': 'harness 注入（injectedHarness，估算）',
+    'o.ctxComp.skillBody': 'skill 正文（skillBody，估算）',
+    'o.ctxComp.residualPos': '未归因正残差（residualPos，含 cache 位移）',
+    'o.ctxComp.compaction': '压缩回收（compaction，独立披露——绝不与正桶净加总）',
+    'o.toolUsage.title': '工具使用（toolUsage）',
+    'o.toolUsage.scopeNote': '仅本节计入子代理（sidechain）轮；触发/截断/关联统计均只看主轮（main rounds only）',
+    'o.toolUsage.kindSourceNote': '分类来源：自报（declared）优先，其余按名字推断（inferred）',
+    'o.toolUsage.allowlistNote': 'builtin/other 边界随 aiide 版本演化（allowlistVersion），跨版本对比需对齐',
+    'o.cov.panelTitle': '覆盖率统计', 'o.cov.statsFailed': '统计计算失败：', 'o.cov.signal': '信号',
+    'o.gloss.cliSink': 'cli 下沉', 'o.badge.estimate': '估算（estimate）',
+    'o.stats.breakdown': '拆分', 'o.stats.bd.valid': '有效', 'o.stats.bd.excluded': '排除', 'o.stats.bd.heldOut': '留出', 'o.stats.bd.noSession': '无 session', 'o.stats.bd.unresolved': '未解析',
   },
 };
 let lang = localStorage.getItem('aiide-lang')
   ?? (navigator.language?.toLowerCase().startsWith('zh') ? 'zh-hans' : 'en');
 if (!I18N[lang]) lang = 'en';
 const t = k => I18N[lang][k] ?? I18N.en[k] ?? k;
+// t() with {placeholder} interpolation, for the few templated strings (e.g. o.stats.upgradeHint).
+const tf = (k, params = {}) => t(k).replace(/\{(\w+)\}/g, (_, p) => params[p] ?? `{${p}}`);
 function setLang(l) { lang = l; localStorage.setItem('aiide-lang', l); applyChrome(); render(); }
 function applyChrome() {
   document.documentElement.lang = lang === 'zh-hans' ? 'zh-Hans' : 'en';
@@ -668,6 +773,8 @@ async function api(path) {
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', () => { applyChrome(); render(); initLiveEvents(); });
 window.addEventListener('resize', () => _charts.forEach(c => { try { c.resize(); } catch { /* disposed */ } }));
+// CSS colors follow prefers-color-scheme live; charts read their colors at render time, so re-render on theme flip.
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => render());
 async function render() {
   const hash = location.hash || '#runs';
   const [view, ...parts] = hash.slice(1).split('/');
@@ -1444,7 +1551,7 @@ function runtimeInfoHtml(e) {
   if (!v.present) return `<div class="diag muted" style="margin-top:6px">${fmt.esc(v.placeholder)}</div>`;
   const sp = v.systemPrompt;
   const spLine = sp
-    ? `<code>${fmt.esc(sp.shaShort ?? '—')}</code>${sp.bytes != null ? ` · ${fmt.n(sp.bytes)} B` : ''}${sp.tokensEst != null ? ` · ≈ ${fmt.n(sp.tokensEst)} tokens <span class="muted">（估算，estimate）</span>` : ''} <span class="badge ${sp.badge.tone === 'ok' ? 'ok' : 'warn'}">${fmt.esc(sp.badge.word)}</span>`
+    ? `<code>${fmt.esc(sp.shaShort ?? '—')}</code>${sp.bytes != null ? ` · ${fmt.n(sp.bytes)} B` : ''}${sp.tokensEst != null ? ` · ≈ ${fmt.n(sp.tokensEst)} tokens <span class="muted">（估算，estimate）</span>` : ''} <span class="badge ${sp.badge.tone === 'ok' ? 'ok' : 'warn'}">${fmt.esc(t(sp.badge.word))}</span>`
     : `<span class="muted">${fmt.esc(RUNTIME_INFO_FIELD_ABSENT.systemPrompt)}</span>`;
   const toolsLine = v.tools
     ? (v.tools.length
@@ -1499,18 +1606,18 @@ function expStatsPanel(e) {
   // resolver warnings (wrapper warnings passed through verbatim + corrupt-sidecar degrade notes)
   const warnHtml = (stCard.warnings ?? []).map(w => `<div class="muted" style="font-size:12px;color:var(--warn)">⚠ ${fmt.esc(w)}</div>`).join('');
   if (stCard.state === 'legacy') {
-    return `<div class="panel"><h3>覆盖率统计</h3>${warnHtml}<div class="muted">${fmt.esc(stCard.backfillHint)}</div></div>`;
+    return `<div class="panel"><h3>${t('o.cov.panelTitle')}</h3>${warnHtml}<div class="muted">${fmt.esc(t(stCard.backfillHint))}</div></div>`;
   }
   if (stCard.state === 'error') {
     // A3 third state: a seal-time stats failure renders as a failure, never as an empty full card
-    return `<div class="panel"><h3>覆盖率统计</h3>${warnHtml}<div style="color:var(--err)">统计计算失败：${fmt.esc(stCard.error)}</div></div>`;
+    return `<div class="panel"><h3>${t('o.cov.panelTitle')}</h3>${warnHtml}<div style="color:var(--err)">${t('o.cov.statsFailed')}${fmt.esc(stCard.error)}</div></div>`;
   }
   const ss = stCard.sampleSize, bd = ss.breakdown;
   // authority badge (A3): embedded = 封存权威; sidecar = honest non-authoritative backfill
-  const authBadge = stCard.authorityBadge ? ` <span class="badge ${stCard.authorityBadge.tone === 'ok' ? 'ok' : 'warn'}" title="${fmt.esc(stCard.authority ?? '')}">${fmt.esc(stCard.authorityBadge.word)}</span>` : '';
+  const authBadge = stCard.authorityBadge ? ` <span class="badge ${stCard.authorityBadge.tone === 'ok' ? 'ok' : 'warn'}" title="${fmt.esc(stCard.authority ?? '')}">${fmt.esc(t(stCard.authorityBadge.word))}</span>` : '';
   // Stage 4 provenance badge: stats.provenance 'adapter-reported' → 自报信号披露; absent/observed → no badge
-  const provBadge = stCard.provenanceBadge ? ` <span class="badge ${stCard.provenanceBadge.tone === 'ok' ? 'ok' : 'warn'}" title="stats.provenance: ${fmt.esc(stCard.provenance ?? '')}">${fmt.esc(stCard.provenanceBadge.word)}</span>` : '';
-  let h = `<div class="panel"><h3>覆盖率统计${authBadge}${provBadge} <span class="muted" style="font-size:12px">${gEx('cli 下沉', 'cliSink')}信号</span></h3>`;
+  const provBadge = stCard.provenanceBadge ? ` <span class="badge ${stCard.provenanceBadge.tone === 'ok' ? 'ok' : 'warn'}" title="stats.provenance: ${fmt.esc(stCard.provenance ?? '')}">${fmt.esc(t(stCard.provenanceBadge.word))}</span>` : '';
+  let h = `<div class="panel"><h3>${t('o.cov.panelTitle')}${authBadge}${provBadge} <span class="muted" style="font-size:12px">${gEx(t('o.gloss.cliSink'), 'cliSink')} ${t('o.cov.signal')}</span></h3>`;
   h += warnHtml;
   // sidecarIgnored 语义（taxonomy §3.0 窄化）：权威数字未采用 sidecar——有 supplemental 时两者并存
   if (stCard.sidecarIgnored) h += `<div class="muted" style="font-size:12px">ⓘ ${stCard.supplementalSections
@@ -1518,23 +1625,23 @@ function expStatsPanel(e) {
     : '存在被忽略的重算 sidecar（CLI 诊断用）——封存实验以内嵌统计为准'}</div>`;
   // taxonomy §3.0 supplemental：独立块 + 独立「回填（非权威）」徽章——绝不挂在权威徽章下、绝不并进权威数字
   if (stCard.supplementalSections) {
-    const supBadge = stCard.supplementalBadge ? ` <span class="badge warn">${fmt.esc(stCard.supplementalBadge.word)}</span>` : '';
+    const supBadge = stCard.supplementalBadge ? ` <span class="badge warn">${fmt.esc(t(stCard.supplementalBadge.word))}</span>` : '';
     const supKeys = Object.keys(stCard.supplementalSections).map(k => `<code>${fmt.esc(k)}</code>`).join(' · ');
     h += `<div style="margin:8px 0 4px"><b>补算统计节</b>${supBadge} <span class="muted" style="font-size:12px">schema v${fmt.esc(String(stCard.supplementalSchema?.from ?? '—'))} → v${fmt.esc(String(stCard.supplementalSchema?.to ?? '—'))}——封存数字不变，以下新增节为非权威补算</span></div>`;
     h += `<div class="muted" style="font-size:12px">${supKeys}</div>`;
   }
   h += `<div class="cards">${card(String(ss.nCoverageValid), gEx('有效样本 n', 'nCoverageValid'))}</div>`;
-  h += `<div class="muted" style="font-size:12px;margin:4px 0 10px">${fmt.esc(ss.note)} · 拆分：有效 ${bd.valid} / 排除 ${bd.excluded} / 留出 ${bd.heldOut} / 无 session ${bd.noSession} / 未解析 ${bd.unresolved}</div>`;
+  h += `<div class="muted" style="font-size:12px;margin:4px 0 10px">${fmt.esc(t(ss.note))} · ${t('o.stats.breakdown')}：${t('o.stats.bd.valid')} ${bd.valid} / ${t('o.stats.bd.excluded')} ${bd.excluded} / ${t('o.stats.bd.heldOut')} ${bd.heldOut} / ${t('o.stats.bd.noSession')} ${bd.noSession} / ${t('o.stats.bd.unresolved')} ${bd.unresolved}</div>`;
   // M1 skill coverage
   const sc = stCard.skillCoverage;
   if (sc) {
     h += `<div style="margin:8px 0 4px"><b>触发覆盖</b> <span class="muted">${sc.triggered}/${sc.installed}${sc.coverageRatio == null ? '' : ' = ' + fmt.pct(sc.coverageRatio)}</span></div>`;
-    if (sc.neverTriggered.skills.length) h += `<div class="muted" style="font-size:12px">${term('从未触发', sc.neverTriggered.hint)}：${sc.neverTriggered.skills.map(x => `<span class="badge warn">${fmt.esc(x)}</span>`).join(' ')}</div>`;
-    if (sc.notExercised.skills.length) h += `<div class="muted" style="font-size:12px">${term('没题目考它', sc.notExercised.hint)}：${sc.notExercised.skills.map(x => `<span class="badge">${fmt.esc(x)}</span>`).join(' ')}</div>`;
+    if (sc.neverTriggered.skills.length) h += `<div class="muted" style="font-size:12px">${term(t('o.cov.neverTriggered.label'), t(sc.neverTriggered.hint))}：${sc.neverTriggered.skills.map(x => `<span class="badge warn">${fmt.esc(x)}</span>`).join(' ')}</div>`;
+    if (sc.notExercised.skills.length) h += `<div class="muted" style="font-size:12px">${term(t('o.cov.notExercised.label'), t(sc.notExercised.hint))}：${sc.notExercised.skills.map(x => `<span class="badge">${fmt.esc(x)}</span>`).join(' ')}</div>`;
   }
   // §S v2 per-skill expansion rows (B1 refs 明细 + B6 miss 清单)。upgradeHint 不再互斥于明细行：
   // v2 embedded 有明细但缺 v3 新节（旧 schema 提示真路径）；v1 的 skillDetails 本就是 []。
-  if (stCard.upgradeHint) h += `<div class="muted" style="font-size:12px;margin:4px 0">${fmt.esc(stCard.upgradeHint)}</div>`;
+  if (stCard.upgradeHint) h += `<div class="muted" style="font-size:12px;margin:4px 0">${fmt.esc(tf(stCard.upgradeHint.key, stCard.upgradeHint))}</div>`;
   for (const row of stCard.skillDetails ?? []) h += expSkillDetailHtml(row);
   // M2 reference coverage + three exemption buckets (bySkill=null → reason, NEVER 读到 0/0)
   const rc = stCard.refCoverage;
@@ -1554,9 +1661,9 @@ function expStatsPanel(e) {
     if (rc.unreadRefs.length) h += `<div class="muted" style="font-size:12px">未读（死重候选）：${rc.unreadRefs.map(u => `<code>${fmt.esc(u.ref)}</code>`).join(' · ')}</div>`;
     const ex = rc.exemptions;
     const buckets = [];
-    if (ex.artifactOnly.refs.length) buckets.push(`${term('权限拒绝', ex.artifactOnly.hint)} ${ex.artifactOnly.refs.length}`);
-    if (ex.excludedOnly.refs.length) buckets.push(`${term('仅排除运行读过', ex.excludedOnly.hint)} ${ex.excludedOnly.refs.length}`);
-    if (ex.notExercised.skills.length) buckets.push(`${term('skill 未触发', ex.notExercised.hint)} ${ex.notExercised.skills.length}`);
+    if (ex.artifactOnly.refs.length) buckets.push(`${term(t('o.cov.exempt.artifactOnly.label'), t(ex.artifactOnly.hint))} ${ex.artifactOnly.refs.length}`);
+    if (ex.excludedOnly.refs.length) buckets.push(`${term(t('o.cov.exempt.excludedOnly.label'), t(ex.excludedOnly.hint))} ${ex.excludedOnly.refs.length}`);
+    if (ex.notExercised.skills.length) buckets.push(`${term(t('o.cov.exempt.notExercised.label'), t(ex.notExercised.hint))} ${ex.notExercised.skills.length}`);
     if (buckets.length) h += `<div class="muted" style="font-size:12px">判死重前已豁免：${buckets.join(' · ')}</div>`;
   }
   // M3-M5 probe signals (three-state) + M7 proximity
@@ -1566,7 +1673,7 @@ function expStatsPanel(e) {
   } else {
     for (const tl of cli.tools) {
       const cov = tl.coverage;
-      h += `<div style="margin:10px 0 4px"><b>${gEx('命令面覆盖', 'commandSurface')}</b> <span class="badge ${cov?.status === 'suspect' ? 'err' : cov?.status === 'unavailable' ? 'warn' : 'ok'}">${fmt.esc(tl.coverageStatus.word)}</span> <code>${fmt.esc(tl.tool)}</code></div>`;
+      h += `<div style="margin:10px 0 4px"><b>${gEx('命令面覆盖', 'commandSurface')}</b> <span class="badge ${cov?.status === 'suspect' ? 'err' : cov?.status === 'unavailable' ? 'warn' : 'ok'}">${fmt.esc(t(tl.coverageStatus.word))}</span> <code>${fmt.esc(tl.tool)}</code></div>`;
       if (cov && cov.status !== 'unavailable') {
         h += `<div class="muted" style="font-size:12px">${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}${cov.unused.length ? ' · 从未用到 ' + cov.unused.join(', ') : ''}${cov.undeclaredInvoked.length ? ' · 命令面漂移 ' + cov.undeclaredInvoked.join(', ') : ''}</div>`;
       }
@@ -1644,10 +1751,14 @@ function v3Section(e, key) {
 }
 // supplemental-sourced segment badge — the S5 回填（非权威） style, pinned per SEGMENT (§3.0:
 // never hung under the 权威（封存时计算） badge)
-const supBadge = (on) => on ? ` <span class="badge warn">回填（非权威）</span>` : '';
+const supBadge = (on) => on ? ` <span class="badge warn">${t('o.auth.backfill')}</span>` : '';
 // honest null-section line (§3.0 null-not-zero): zh reason copy + canonical reason code —
 // a null section renders its reason, never a blank and never a 0
-const nullReasonLine = (v) => `<div class="muted" style="font-size:12px">— ${fmt.esc(v.reasonCopy)}${v.reason ? `（${fmt.esc(v.reason)}）` : ''}</div>`;
+const nullReasonLine = (v) => {
+  const unknown = v.reasonCopy === 'o.nullReason.unknown';
+  const copy = tf(v.reasonCopy, { reason: v.reason ?? 'unknown' });
+  return `<div class="muted" style="font-size:12px">— ${fmt.esc(copy)}${v.reason && !unknown ? `（${fmt.esc(v.reason)}）` : ''}</div>`;
+};
 
 // 运行观测 card: contextComposition (§3.1) + toolUsage (§3.2) + fileTargets (§3.4, folded into the
 // tool-usage segment). Rendered ONLY when at least one v3 section resolves (embedded or supplemental).
@@ -1662,14 +1773,14 @@ function runObsPanel(e) {
   let h = `<div class="panel"><h3>运行观测 <span class="muted" style="font-size:12px">context 组成 + 工具使用（contextComposition · toolUsage · fileTargets）</span></h3>`;
   // §3.1 contextComposition — 增量归因视角（copy ban: never a cost view）
   if (ccV) {
-    h += `<div style="margin:8px 0 4px"><b>${fmt.esc(ccV.title ?? CONTEXT_COMPOSITION_TITLE)}</b>${!ccV.null && ccV.estimate ? ' <span class="badge warn">估算（estimate）</span>' : ''}${supBadge(ccV.nonAuthoritative)}</div>`;
+    h += `<div style="margin:8px 0 4px"><b>${fmt.esc(t(ccV.title ?? CONTEXT_COMPOSITION_TITLE))}</b>${!ccV.null && ccV.estimate ? ` <span class="badge warn">${t('o.badge.estimate')}</span>` : ''}${supBadge(ccV.nonAuthoritative)}</div>`;
     if (ccV.null) h += nullReasonLine(ccV);
     else {
       h += `<table><thead><tr><th>组成桶</th><th>占比（均值）</th><th>范围（min–max）</th></tr></thead><tbody>`;
-      for (const row of ccV.rows) h += `<tr><td>${fmt.esc(row.label)}</td><td>${row.share == null ? '—' : fmt.pct(row.share.mean)}</td><td class="muted">${row.share == null ? '—' : fmt.pct(row.share.min) + '–' + fmt.pct(row.share.max)}</td></tr>`;
+      for (const row of ccV.rows) h += `<tr><td>${fmt.esc(t(row.label))}</td><td>${row.share == null ? '—' : fmt.pct(row.share.mean)}</td><td class="muted">${row.share == null ? '—' : fmt.pct(row.share.min) + '–' + fmt.pct(row.share.max)}</td></tr>`;
       h += `</tbody></table>`;
       const cp = ccV.compaction;
-      h += `<div class="muted" style="font-size:12px;margin-top:4px">${fmt.esc(cp.label)}：${cp.runsWithCompaction > 0
+      h += `<div class="muted" style="font-size:12px;margin-top:4px">${fmt.esc(t(cp.label))}：${cp.runsWithCompaction > 0
         ? `${cp.runsWithCompaction} 个 run 出现 · 绝对量均值 ≈ ${fmt.n(cp.absolute?.mean)} tokens · 相对分母均值 ${fmt.pct(cp.shareOfDenominator?.mean ?? 0)}`
         : '未观测到压缩'}</div>`;
       h += `<div class="muted" style="font-size:12px">n=${ccV.n}${ccV.untaggedLegacyRuns ? ` · 跳过未标记旧 run ${ccV.untaggedLegacyRuns}` : ''}${ccV.zeroFootprintRuns ? ` · 跳过零 footprint run ${ccV.zeroFootprintRuns}` : ''}${ccV.skippedRounds ? ` · 跳过零 footprint 轮 ${ccV.skippedRounds}` : ''}${ccV.peakFootprint ? ` · 峰值 footprint 均值 ${fmt.n(Math.round(ccV.peakFootprint.mean))}` : ''}${ccV.maxContribution ? ` · 最大贡献 run <code>${fmt.esc(String(ccV.maxContribution.runId ?? '—'))}</code>` : ''}</div>`;
@@ -1677,13 +1788,13 @@ function runObsPanel(e) {
   }
   // §3.2 toolUsage — byKind main/sidechain split + MCP server table + top tools
   if (tuV) {
-    h += `<div style="margin:12px 0 4px"><b>${fmt.esc(tuV.title ?? TOOL_USAGE_TITLE)}</b>${supBadge(tuV.nonAuthoritative)}</div>`;
+    h += `<div style="margin:12px 0 4px"><b>${fmt.esc(t(tuV.title ?? TOOL_USAGE_TITLE))}</b>${supBadge(tuV.nonAuthoritative)}</div>`;
     if (tuV.null) h += nullReasonLine(tuV);
     else {
       h += `<table><thead><tr><th>类别（kind）</th><th>主链（main）</th><th>子代理（sidechain）</th><th>合计</th></tr></thead><tbody>`;
       for (const k of tuV.byKind) h += `<tr><td><code>${fmt.esc(k.kind)}</code></td><td>${fmt.n(k.main)}</td><td>${fmt.n(k.sidechain)}</td><td>${fmt.n(k.total)}</td></tr>`;
       h += `</tbody></table>`;
-      h += `<div class="muted" style="font-size:12px">${fmt.esc(tuV.scopeNote)} · ${fmt.esc(tuV.kindSourceNote)}：${tuV.kindSource.declared}/${tuV.kindSource.inferred}${tuV.allowlistVersion ? ` · ${fmt.esc(tuV.allowlistNote)}：<code>${fmt.esc(tuV.allowlistVersion)}</code>` : ''}</div>`;
+      h += `<div class="muted" style="font-size:12px">${fmt.esc(t(tuV.scopeNote))} · ${fmt.esc(t(tuV.kindSourceNote))}：${tuV.kindSource.declared}/${tuV.kindSource.inferred}${tuV.allowlistVersion ? ` · ${fmt.esc(t(tuV.allowlistNote))}：<code>${fmt.esc(tuV.allowlistVersion)}</code>` : ''}</div>`;
       if (tuV.mcpServers.length) {
         h += `<div style="margin:6px 0 2px"><b>MCP server 切分</b></div><table><thead><tr><th>server</th><th>调用（calls）</th><th>错误（errors）</th><th>权限拒绝（denials）</th></tr></thead><tbody>`;
         for (const m of tuV.mcpServers) h += `<tr><td><code>${fmt.esc(m.server)}</code></td><td>${fmt.n(m.calls)}</td><td>${fmt.n(m.errors)}</td><td>${fmt.n(m.denials)}</td></tr>`;
@@ -2207,8 +2318,8 @@ async function initRelationshipCharts(depgraph) {
     const data = []; h.matrix.forEach((row, i) => row.forEach((val, j) => { if (val != null) data.push([j, i, val]); }));
     c.setOption({ tooltip: { position: 'top', formatter: p => `${h.refs[p.data[1]]} × ${h.refs[p.data[0]]}<br>${t('rel.coRead')} ${pct(p.data[2])}` }, grid: { left: 120, right: 20, top: 20, bottom: 90 },
       xAxis: { type: 'category', data: h.refs, axisLabel: { color: gv('--dim'), rotate: 40, fontSize: 10 } }, yAxis: { type: 'category', data: h.refs, axisLabel: { color: gv('--dim'), fontSize: 10 } },
-      visualMap: { min: 0, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 6, textStyle: { color: gv('--dim') }, inRange: { color: ['#161b22', '#1f6feb', '#58a6ff', '#cae8ff'] } },
-      series: [{ type: 'heatmap', data, label: { show: true, formatter: p => p.data[2] ? (p.data[2] * 100).toFixed(0) : '', color: '#0d1117', fontSize: 10 }, itemStyle: { borderColor: gv('--border'), borderWidth: 1 } }] });
+      visualMap: { min: 0, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 6, textStyle: { color: gv('--dim') }, inRange: { color: [gv('--heat0'), gv('--heat1'), gv('--heat2'), gv('--heat3')] } },
+      series: [{ type: 'heatmap', data, label: { show: true, formatter: p => p.data[2] ? (p.data[2] * 100).toFixed(0) : '', color: gv('--heat-label'), fontSize: 10 }, itemStyle: { borderColor: gv('--border'), borderWidth: 1 } }] });
   } else if (hEl) hEl.innerHTML = empty(t('rel.noHeat'));
   // intent→skill→ref sankey — ported from initSankey
   const s = depgraph.sankey;
@@ -2290,7 +2401,7 @@ function probeBlockPanel(cli) {
     for (const tl of arm.tools) {
       const cov = tl.coverage;
       const covTxt = !cov ? '无数据' : cov.status === 'unavailable' ? `用到 ${cov.invoked.length} 条（未宣告命令面）` : `${cov.invoked.length}/${cov.declared}${cov.ratio == null ? '' : ' = ' + fmt.pct(cov.ratio)}`;
-      h += `<div style="margin:8px 0 2px"><span class="badge">${fmt.esc(arm.arm)}</span> <code>${fmt.esc(tl.tool)}</code> <span class="badge ${tl.coverageStatus.tone === 'ok' ? 'ok' : tl.coverageStatus.tone === 'warn' ? 'warn' : ''}">${fmt.esc(tl.coverageStatus.word)}</span> <span class="muted">${gEx('命令面覆盖', 'commandSurface')} ${covTxt}</span></div>`;
+      h += `<div style="margin:8px 0 2px"><span class="badge">${fmt.esc(arm.arm)}</span> <code>${fmt.esc(tl.tool)}</code> <span class="badge ${tl.coverageStatus.tone === 'ok' ? 'ok' : tl.coverageStatus.tone === 'warn' ? 'warn' : ''}">${fmt.esc(t(tl.coverageStatus.word))}</span> <span class="muted">${gEx('命令面覆盖', 'commandSurface')} ${covTxt}</span></div>`;
     }
   }
   for (const sq of cli.sequences) h += `<div class="muted" style="font-size:12px">${term('未验证假说', EXP_GLOSSARY.hypothesisSeq)}（${fmt.esc(sq.arm)}）：命令连发 ${fmt.esc(sq.seq.join(' → '))}（${sq.distinctCases} 个不同题目）${sq.knownCollapse ? ' · 注记：或可用 <code>' + fmt.esc(sq.knownCollapse) + '</code>' : ''}</div>`;

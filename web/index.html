@@ -189,6 +189,7 @@ const I18N = {
     'upg.perSkillPlain': 'a single skill’s diagnostics are not an adoption certificate — only the whole-bundle verdict counts; the tool only gives evidence, you decide whether to adopt.',
     // plain-language tooltips for the statistical terms — same wording as the U7 report end
     'tip.upg.pairs': 'paired cases = tasks both the new and old version ran — only shared tasks are a fair comparison',
+    'upg.naRouting': 'n/a (no skill routing)', 'tip.upg.naRouting': 'this arm ran on an external/adapter runtime with no Skill mechanism — L1 routing was never possible, so it is not applicable (not a routing failure)',
     'tip.upg.minPairs': 'MIN_PAIRS = the minimum paired-case count for a trustworthy verdict; below it, the result shows "undecidable"',
     'tip.upg.exclusion': 'exclusion rate = share of cases dropped for environment problems; over 12% forces "undecidable"',
     'tip.upg.referenceOnly': 'reference-only = a 5-7 sample CI is coarse; treat it as indicative, not decisive',
@@ -282,7 +283,7 @@ const I18N = {
     'cmp.reportNote': 'a statistical verdict needs the upgrade-eval cohort (N paired runs); a single pair only supports the deltas below',
     'cmp.cohortFrame': 'these two experiments belong to upgrade cohort',
     'cmp.autoLive': 'generated live', 'cmp.notComparable': 'no shared tasks to pair',
-    'cmp.crossRt': 'cross-runtime', 'cmp.crossRtNote': 'cross-runtime pair: quality (C/L1/L2/L3) & references are comparable; cost/H axes are NOT (different runtime) — read them per-arm, not as a delta',
+    'cmp.crossRt': 'cross-runtime', 'cmp.crossRtNote': 'cross-runtime pair: result quality (C/L2/L3) & references are comparable; L1 routing is n/a for an external/adapter runtime (no Skill mechanism); cost/H axes are NOT comparable (different runtime) — read them per-arm, not as a delta',
     'cmp.useDynamic': '— live report (A→B) —',
     'cmp.dynamicFrame': 'full report generated live from the two experiments’ scorecards (no aiide upgrade run) — L2 = correctness (C); L1/L3 shown only where the suite measured routing/safety',
     'cmp.openFullHtml': 'open full report.html (all charts)',
@@ -380,6 +381,7 @@ const I18N = {
     'upg.perSkillPlain': '单个 skill 的诊断不是采用凭证——只有「整包结论」才算数；工具只给证据，采用由你决定。',
     // 统计术语的人话 tooltip——与 U7 报告端文案一致
     'tip.upg.pairs': 'n paired = 新旧两版都跑过的题目数——只比较共同题才公平',
+    'upg.naRouting': '不适用（无 skill 路由）', 'tip.upg.naRouting': '这一版跑在外部/适配器 runtime 上，没有 Skill 机制——L1 路由根本无从发生，故为不适用（不是路由失败）',
     'tip.upg.minPairs': 'MIN_PAIRS = 可信结论最低配对数，不足则显示「无法判定」',
     'tip.upg.exclusion': '排除率 = 环境问题剔除占比，超 12% 强制「无法判定」',
     'tip.upg.referenceOnly': '仅供参考 = 5-7 条样本的 CI 较粗糙，只作参考、不作定论',
@@ -473,7 +475,7 @@ const I18N = {
     'cmp.reportNote': '统计判定需要 upgrade-eval 的 cohort（N 对配对）；单一配对只支撑下方的 delta',
     'cmp.cohortFrame': '这两个实验属于 upgrade cohort',
     'cmp.autoLive': '即时生成', 'cmp.notComparable': '无共同题目可配对',
-    'cmp.crossRt': '跨 runtime', 'cmp.crossRtNote': '跨 runtime 对比：质量 (C/L1/L2/L3) 与参考文档可比；成本/H 轴不可比（runtime 不同）—— 请按各 arm 单独读，勿当 delta',
+    'cmp.crossRt': '跨 runtime', 'cmp.crossRtNote': '跨 runtime 对比：结果质量 (C/L2/L3) 与参考文档可比；L1 路由对外部/适配器 runtime 不适用（无 Skill 机制）；成本/H 轴不可比（runtime 不同）—— 请按各 arm 单独读，勿当 delta',
     'cmp.useDynamic': '— 即时报告 (A→B) —',
     'cmp.dynamicFrame': '完整报告由两个实验的成绩单即时生成（免跑 aiide upgrade）—— L2 = 正确性 (C)；L1/L3 仅在 suite 有量测 routing/safety 时显示',
     'cmp.openFullHtml': '打开完整 report.html（含全部图表）',
@@ -2197,7 +2199,7 @@ function upgradeReportHtml(v, report) {
     </div>
     ${upgradeNextStepsPanel(v.nextSteps)}
     <div class="grid2">
-      <div class="panel"><h3>${t('upg.axesQuality')}</h3>${v.qualityAxes.length ? v.qualityAxes.map(ax => deltaRow(t('upg.axis.' + ax.key), ax.deltaPp, ax.ci, ax.n, 'pp', { sigUp: ax.significantUp, heuristic: ax.heuristic })).join('') : `<span class="muted">${t('chart.noData')}</span>`}
+      <div class="panel"><h3>${t('upg.axesQuality')}</h3>${v.qualityAxes.length ? v.qualityAxes.map(ax => deltaRow(t('upg.axis.' + ax.key), ax.deltaPp, ax.ci, ax.n, 'pp', { sigUp: ax.significantUp, heuristic: ax.heuristic, naRouting: ax.naRouting })).join('') : `<span class="muted">${t('chart.noData')}</span>`}
         ${v.flowIncomplete ? `<div class="score-row"><span class="lbl muted">${statTip(t('upg.flowInc'), 'flow-incomplete')}</span><span class="val ${v.flowIncomplete.regressed ? '' : 'muted'}" style="width:auto;${v.flowIncomplete.regressed ? 'color:var(--err)' : ''}">${fmt.pct(v.flowIncomplete.rateNew ?? 0)} vs ${fmt.pct(v.flowIncomplete.rateOld ?? 0)}${v.flowIncomplete.regressed ? ' ⚠' : ''}</span></div>` : ''}
       </div>
       <div class="panel"><h3>${t('upg.axesCost')}</h3>${v.costAxes.length ? v.costAxes.map(ax => deltaRow(t('upg.axis.' + ax.key), ax.delta, ax.ci, ax.n, '', { sigDown: ax.significantDown, sigUp: ax.significantUp })).join('') : `<span class="muted">${t('chart.noData')}</span>`}</div>
@@ -2264,6 +2266,11 @@ function upgradeNextStepsPanel(ns) {
 // mini delta row: label · value · a hand-written SVG CI bar centred on 0 (zero-dep, no ECharts).
 // A CI whose lower bound clears the non-inferiority margin reads as ok; one straddling 0 is dim.
 function deltaRow(label, delta, ci, n, unit, flags = {}) {
+  // routing n/a (skill-less runtime): show 不适用 with reason, no delta bar — routing was never possible
+  if (flags.naRouting) {
+    return `<div class="score-row"><span class="lbl muted">${label}</span>
+      <span class="val" style="width:auto">${statTip(`<span class="muted">${t('upg.naRouting')}</span>`, t('tip.upg.naRouting'))}</span></div>`;
+  }
   const badges = [
     flags.sigDown ? `<span class="badge ok">${t('upg.sigDown')}</span>` : '',
     flags.sigUp ? `<span class="badge err">${t('upg.sigUp')}</span>` : '',

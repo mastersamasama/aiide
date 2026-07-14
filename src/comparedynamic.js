@@ -13,6 +13,11 @@ import { UPGRADE_CONFIG } from './upgradeConfig.js';
 // Map one sealed experiment to an upgrade "arm". held-out tasks never enter a comparison.
 export function experimentToArm(exp) {
   const env = exp.environment ?? {};
+  // Skill routing needs a skill substrate. An external/adapter runtime (okx via MCP) copies no skills
+  // into a profile → env.skills is empty → it has no Skill mechanism to route with. Older sealed
+  // experiments may still carry l1Pass=false (graded 'missed' before the lab.js source guard landed);
+  // retroactively fold those to null here so L1 reads "n/a" instead of slandering the runtime with 0%.
+  const skillRouting = (env.skills ?? []).length > 0;
   const cases = {};
   for (const [id, tk] of Object.entries(exp.tasks ?? {})) {
     if (tk.held_out === true) continue;
@@ -21,7 +26,7 @@ export function experimentToArm(exp) {
       category: tk.category ?? 'uncategorized',
       prompt: tk.prompt ?? '',
       repeats: (tk.repeats ?? []).map((r) => ({
-        l1Pass: r.l1Pass ?? null,                    // Phase 1: routing verdict (null when no expected skill)
+        l1Pass: skillRouting ? (r.l1Pass ?? null) : null, // Phase 1: routing verdict (null when no expected skill / no skill substrate)
         l2Pass: r.excluded === true ? null : r.C === 1, // L2 = correctness (the experiment's own C)
         l3Pass: r.l3Pass ?? null,                    // Phase 1: safety verdict (null when no confirm gate)
         rounds: r.rounds ?? 0,

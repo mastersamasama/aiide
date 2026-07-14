@@ -1352,8 +1352,11 @@ async function buildRepeat({ res, task, suite, runtime = { type: 'claude-code' }
   // Upgrade-fidelity L1: per-repeat routing verdict, so a dynamic arm (experimentToArm) carries a real
   // L1 axis without re-running `aiide upgrade`. Additive — never touches C/P/H. null when the task
   // declares no expected skill (nothing to route-check) or a permission artifact blocked it.
+  // by design: L1 only applies to the claude-code runtime (the Skill mechanism lives there). An
+  // external/adapter runtime has no Skill routing to grade — scoring it 'missed' would slander it as a
+  // routing failure (0%) when routing was never possible, so L1 stays n/a (null) for those runtimes.
   const expSkill = expectedSkillOf(task);
-  if (expSkill != null) {
+  if (expSkill != null && (runtime.type ?? 'claude-code') === 'claude-code') {
     const routing = gradeRouting(run, { expected_skill: expSkill, allowed_auxiliary: task.allowed_auxiliary ?? [] });
     rep.routing = routing;
     rep.l1Pass = routing === 'permission-artifact' ? null : routing === 'correct';

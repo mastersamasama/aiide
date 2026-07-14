@@ -47,6 +47,28 @@ test('experimentToArm: excluded repeat → l2Pass null (not a fake fail); missin
   assert.equal(rep.excluded, true);
 });
 
+test('experimentToArm: skill-less runtime (env.skills empty) forces l1Pass null even if sealed false', () => {
+  // an external/adapter runtime copies no skills → env.skills=[] → no Skill mechanism to route with.
+  // older seals may carry l1Pass=false (graded "missed"); experimentToArm must fold those to n/a.
+  const exp = mkExp('EXT', { C: 1, l1Pass: false });     // sealed as a routing "fail"
+  exp.environment.skills = [];                            // ← skill-less runtime
+  const rep = experimentToArm(exp).cases.t0.repeats[0];
+  assert.equal(rep.l1Pass, null, 'skill-less runtime → L1 n/a, not a fabricated 0/false');
+  assert.equal(rep.l2Pass, true, 'L2 (correctness) unaffected — still graded from C');
+});
+
+test('buildDynamicCompareReport: external-runtime arm → L1 routingApplicable.new=false, passNew null (no fake 0)', () => {
+  const A = mkExp('A', { nTasks: 10, C: 1, l1Pass: true });          // claude-code arm (has skills)
+  const B = mkExp('B', { nTasks: 10, C: 1, l1Pass: false });         // external arm sealed as routing-fail
+  B.environment.skills = [];                                          // ← skill-less runtime
+  const rep = buildDynamicCompareReport({ expA: A, expB: B, now: '2026-01-01T00:00:00Z' });
+  assert.equal(rep.axes.quality.l1.routingApplicable.old, true);     // A has skills → applicable
+  assert.equal(rep.axes.quality.l1.routingApplicable.new, false);    // B skill-less → n/a
+  assert.equal(rep.axes.quality.l1.passNew, null, 'external arm L1 pass rate n/a, never 0%');
+  assert.equal(rep.axes.quality.l1.deltaPp, null, 'no L1 delta drawn across a runtime that cannot route');
+  assert.equal(rep.axes.quality.l2.passNew, 1, 'L2 (correctness) still comparable across runtimes');
+});
+
 test('buildDynamicCompareReport: <8 tasks → insufficient-data; dynamic flag; depgraph passthrough', () => {
   const A = mkExp('A', { nTasks: 2, C: 0 });
   const B = mkExp('B', { nTasks: 2, C: 1 });

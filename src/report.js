@@ -760,6 +760,15 @@ export function buildReportJson({ comparison, depgraph = null, staticGates = nul
       ...(L.layer === 'L3' ? { heuristic: comparison.l3Heuristic } : {}),
     };
   }
+  // L1 routing is n/a for an arm whose runtime has no skill substrate (external/adapter runtime → no
+  // Skill mechanism). Flag it per-arm so the render distinguishes "不适用（此 runtime 无路由）" from a
+  // bare "n/a" caused by missing data — and never draws a misleading "没问题" conclusion for it.
+  if (qualityAxes.l1) {
+    qualityAxes.l1.routingApplicable = {
+      old: (armA.skills?.length ?? 0) > 0,
+      new: (armB.skills?.length ?? 0) > 0,
+    };
+  }
   // ── axes.cost.{turns,tokens,seconds}: delta, ci{lo,hi}, n, significantDown/Up (+ display) ──
   const costAxes = {};
   for (const a of comparison.axes) {
@@ -1137,6 +1146,13 @@ export function buildReportMd(report) {
   const layerName = { l1: '路由', l2: '结果', l3: '安全' };
   for (const key of ['l1', 'l2', 'l3']) {
     const ly = report.axes.quality[key]; if (!ly) continue;
+    // L1 n/a for a skill-less arm (external/adapter runtime) — say so instead of drawing a conclusion
+    const ra = ly.routingApplicable;
+    if (ra && (ra.old === false || ra.new === false)) {
+      const side = ra.old === false && ra.new === false ? '两版' : (ra.new === false ? '新版' : '旧版');
+      L.push(`- ${key.toUpperCase()} ${layerName[key]}: ${side} runtime 无 skill 路由机制（外部/适配器 runtime）→ 不适用（n/a），不参与升级判定`);
+      continue;
+    }
     const concl = ly.nonInferior ? '没问题' : `新版变差（最坏 ${ly.ci.lo.toFixed(1)}pp，超 ${dpp}pp 容差）`;
     const denom = ly.n != null ? `（分母 ${ly.n} 题${(report.pairs - (report.excludedCases?.length ?? 0)) !== ly.n ? '——与第 1 节纳入数不同者为不计入本层的题，如权限拒绝' : ''}）` : '';
     const ciTxt = ly.ci ? ` · 置信区间 [${ly.ci.lo}, ${ly.ci.hi}]pp——判定看的是区间最坏一端（${ly.ci.lo}pp）而非点估计` : '';
@@ -1757,12 +1773,20 @@ function s2Conclusion(L,name){var dpp=DATA.footer.config.nonInferiorityDeltaPp;
 function renderS2(){
   const q=DATA.axes.quality,fi=DATA.axes.flowIncomplete;
   const zh={l1:'路由',l2:'结果',l3:'安全'};
+  const naCell='<span class="muted" title="此 runtime 无 skill 路由机制（外部/适配器 runtime），L1 不适用">不适用</span>';
   const lr=key=>{const L=q[key];if(!L)return '';const dfrac=L.deltaPp==null?null:L.deltaPp/100;
+    // L1 with a skill-less arm: show 不适用 for that arm and don't draw a pass/fail conclusion on it
+    const ra=L.routingApplicable;
+    const naOld=ra&&ra.old===false, naNew=ra&&ra.new===false;
+    const oldCell=naOld?naCell:pct(L.passOld), newCell=naNew?naCell:pct(L.passNew);
+    const concl=(naOld||naNew)?'<span class="delta neutral">不适用（无 skill 路由）</span>':s2Conclusion(L,'新版');
+    const deltaCell=(naOld||naNew)?'—':sPp(L.deltaPp);
+    const ciCell=(naOld||naNew)?'—':'<span class="ci">['+sPp(L.ci.lo)+', '+sPp(L.ci.hi)+']</span>';
     return '<tr class="q-row" data-skills="'+(L.skills||[]).join(',')+'"><td><b>'+key.toUpperCase()+'</b> <span class="muted">'+zh[key]+'</span></td>'
-    +'<td class="num arm-a">'+pct(L.passOld)+'</td><td class="num arm-b">'+pct(L.passNew)+'</td>'
-    +'<td class="num delta '+(dfrac>=0?'good':(L.nonInferior?'neutral':'bad'))+'">'+sPp(L.deltaPp)+'</td>'
-    +'<td><span class="ci">['+sPp(L.ci.lo)+', '+sPp(L.ci.hi)+']</span></td>'
-    +'<td>'+s2Conclusion(L,'新版')+'</td></tr>';};
+    +'<td class="num arm-a">'+oldCell+'</td><td class="num arm-b">'+newCell+'</td>'
+    +'<td class="num delta '+((naOld||naNew)?'neutral':(dfrac>=0?'good':(L.nonInferior?'neutral':'bad')))+'">'+deltaCell+'</td>'
+    +'<td>'+ciCell+'</td>'
+    +'<td>'+concl+'</td></tr>';};
   document.getElementById('s2').innerHTML=head('S2 质量三层','三层任何一层不过，该题就算失败 · 权限问题和确认中断单独统计（不冤枉路由）','s2_quality')
     +'<table><thead><tr><th>层</th><th class="num arm-a">旧版</th><th class="num arm-b">新版</th><th class="num">'+gw('变化','deltaCol')+'</th><th>'+gw('CI','ci')+' ('+gw('非劣性 δ='+DATA.footer.config.nonInferiorityDeltaPp+'pp','nonInf')+')</th><th>结论</th></tr></thead><tbody>'+['l1','l2','l3'].map(lr).join('')+'</tbody></table>'
     +'<div class="diag-label">确认后中断率 <span class="muted" style="font-weight:400">问完确认就停住没做事的比例</span> <span class="gloss" title="'+esc(GLOSSARY.flowDenom)+'">ⓘ</span></div>'

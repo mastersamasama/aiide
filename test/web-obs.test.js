@@ -513,6 +513,24 @@ test('U8: buildUpgradeView assembles banner + 3-axis cards + version quad, honou
   assert.equal(v.nextSteps.needPairs, 4);         // 10 − 6, from the report's own footer config
 });
 
+test('U8: buildUpgradeView flags L1 naRouting when an arm has no skill substrate (external runtime)', () => {
+  const mk = (l1) => ({
+    verdict: 'neutral-refactor', established: true, pairs: 10, exclusionPct: 0,
+    arms: { new: { label: 'okx' }, old: { label: 'cc' } },
+    axes: { quality: { l1, l2: { deltaPp: 0, ci: { lo: -1, hi: 1 }, n: 10 } }, cost: {}, flowIncomplete: { rateNew: 0, rateOld: 0 } },
+    perSkill: { skills: [] }, footer: { config: { MIN_PAIRS: 8 } },
+  });
+  // external arm: passNew n/a + routingApplicable.new false → naRouting true
+  const ext = buildUpgradeView(mk({ deltaPp: null, ci: { lo: null, hi: null }, n: 0, passOld: 1, passNew: null, routingApplicable: { old: true, new: false } }));
+  assert.equal(ext.qualityAxes.find(a => a.key === 'l1').naRouting, true);
+  // both arms have skills → applicable both sides → not naRouting even if L2-only data
+  const normal = buildUpgradeView(mk({ deltaPp: 2, ci: { lo: 0, hi: 4 }, n: 10, routingApplicable: { old: true, new: true } }));
+  assert.equal(normal.qualityAxes.find(a => a.key === 'l1').naRouting, false);
+  // legacy report with no routingApplicable field → naRouting stays false (back-compat)
+  const legacy = buildUpgradeView(mk({ deltaPp: 2, ci: { lo: 0, hi: 4 }, n: 10 }));
+  assert.equal(legacy.qualityAxes.find(a => a.key === 'l1').naRouting, false);
+});
+
 // ---- experiment statistics card (design §2.3/§2.4) — three-state + block-status badges ---------
 
 test('EXP: three-state — no stats key = legacy (backfill hint), stats present = full', () => {

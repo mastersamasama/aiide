@@ -365,10 +365,16 @@ export function buildUpgradeView(report) {
   const g = upgradeVerdictGlyph(report.verdict, report.established);
   const q = report.axes?.quality ?? {};
   const c = report.axes?.cost ?? {};
-  const qualityAxes = ['l1', 'l2', 'l3'].filter(k => q[k]).map(k => ({
-    key: k, deltaPp: q[k].deltaPp ?? null, ci: q[k].ci ?? null, n: q[k].n ?? null,
-    significantUp: q[k].significantUp === true, heuristic: q[k].heuristic === true,
-  }));
+  const qualityAxes = ['l1', 'l2', 'l3'].filter(k => q[k]).map(k => {
+    // L1 is n/a when either arm's runtime has no skill substrate (external/adapter runtime). Surface a
+    // naRouting flag so the row reads "不适用" instead of a bare n/a delta (routing was never possible).
+    const ra = q[k].routingApplicable;
+    const naRouting = !!ra && (ra.old === false || ra.new === false);
+    return {
+      key: k, deltaPp: q[k].deltaPp ?? null, ci: q[k].ci ?? null, n: q[k].n ?? null,
+      significantUp: q[k].significantUp === true, heuristic: q[k].heuristic === true, naRouting,
+    };
+  });
   const costAxes = ['turns', 'tokens', 'seconds'].filter(k => c[k]).map(k => ({
     key: k, delta: c[k].delta ?? null, ci: c[k].ci ?? null, n: c[k].n ?? null,
     significantDown: c[k].significantDown === true, significantUp: c[k].significantUp === true,

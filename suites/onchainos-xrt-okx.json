@@ -3,7 +3,7 @@
   "model": "DeepSeek-V4-Pro",
   "repeats": 1,
   "maxTurns": 15,
-  "timeoutMs": 300000,
+  "timeoutMs": 330000,
   "judge": {
     "runtime": "claude-code",
     "model": "sonnet",
@@ -1291,7 +1291,8 @@
     "env": {
       "AIIDE_SESSION_TOKEN": "aiide-bench",
       "OKX_DEMO_SEED_HOME": "C:/Users/wky/.onchainos",
-      "OKX_DEMO_HOMES_DIR": "D:/programme/ai/okx-onchainos-demo/.onchainos-homes"
+      "OKX_DEMO_HOMES_DIR": "D:/programme/ai/okx-onchainos-demo/.onchainos-homes",
+      "AIIDE_DRIVER_TIMEOUT_MS": "300000"
     },
     "service": {
       "cmd": "bun",

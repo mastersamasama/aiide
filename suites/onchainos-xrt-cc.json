@@ -1279,5 +1279,28 @@
         }
       ]
     }
+  ],
+  "skills": {
+    "dirs": [
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-agentic-wallet",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-dex-swap",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-dex-market",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-dex-token",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-dex-signal",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-dex-social",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-dex-trenches",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-defi-invest",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-defi-portfolio",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-wallet-portfolio",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-growth-competition",
+      "D:/programme/ai/okx-onchainos-demo/reference/onchainos-skills/skills/okx-security"
+    ]
+  },
+  "allowedTools": [
+    "Skill",
+    "Read",
+    "Glob",
+    "Grep",
+    "Bash(onchainos:*)"
   ]
 }

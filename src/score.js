@@ -284,6 +284,12 @@ export function scoreTask(repeats, passKArg = []) {
     successRate: round3(successes / Math.max(1, validN)),
     wilsonCi: wilson(successes, validN),
     lowSample,
+    // routing precision (soft): distinct union of over-routed skills across repeats — skills used
+    // beyond expected∪allowed. null when no repeat carried a routing grade (n/a), never a fake [].
+    routingExtras: (() => {
+      const graded = repeats.filter(r => Array.isArray(r.routingExtras));
+      return graded.length ? [...new Set(graded.flatMap(r => r.routingExtras))].sort() : null;
+    })(),
     efficiency: { // diagnostic only
       meanDurationMs: ok.length ? Math.round(mean(ok.map(r => r.efficiency.durationMs))) : 0,
       meanCostUsd: ok.length ? round4(mean(ok.map(r => r.efficiency.costUsd))) : 0,
@@ -337,6 +343,30 @@ function allToolCalls(run) {
 // L1 routing verdict (R3.1): five values. primary trigger (U2 extractTriggers) decides correct/wrong;
 // allowed_auxiliary co-triggers never count as false_positive; a permission-blocked route is separated
 // from a genuine miss so it never pollutes the routing denominator (R3.1.4).
+// Distinct skills that ACTUALLY routed (a permission-blocked Skill call did NOT route — R3.1.4), in
+// first-occurrence order. Shared by gradeRouting and routingExtras so the two never drift.
+export function collectRoutedSkills(run) {
+  const isBlocked = (tc) => classifyToolResult(tc) === 'permission-artifact';
+  const out = [], seen = new Set();
+  for (const tc of allToolCalls(run)) {
+    if (tc.name !== 'Skill' || !tc.skill || isBlocked(tc)) continue;
+    if (!seen.has(tc.skill)) { seen.add(tc.skill); out.push(tc.skill); }
+  }
+  return out;
+}
+
+// Over-routing precision signal (ORTHOGONAL to the verdict): the skills that actually routed but lie
+// OUTSIDE the acceptable set (expected ∪ allowed_auxiliary). Non-empty on a 'correct' task means it
+// used more/other skills than needed — wasted context (listing tax + skill bodies) + a wrong-skill
+// risk — surfaced as a soft diagnostic, NEVER a fail. Empty when routing is clean. The caller gates on
+// "has an expected skill + claude-code runtime", so absence upstream stays n/a (never a fake []).
+export function routingExtras(run, caseObj = {}) {
+  const raw = caseObj.expected_skill ?? null;
+  const expectedList = raw == null ? [] : (Array.isArray(raw) ? raw.filter(Boolean) : [raw]);
+  const acceptable = new Set([...expectedList, ...(caseObj.allowed_auxiliary ?? [])]);
+  return collectRoutedSkills(run).filter(s => !acceptable.has(s)).sort();
+}
+
 export function gradeRouting(run, caseObj = {}, { permissionArtifact = null } = {}) {
   // expected_skill is EITHER a single skill (exact-match semantics) OR a list of ACCEPTABLE skills.
   // A compound question can be answered via any of several overlapping skills, so a list means
@@ -349,12 +379,10 @@ export function gradeRouting(run, caseObj = {}, { permissionArtifact = null } = 
 
   // skill calls that actually routed (a permission-blocked Skill call did NOT route — R3.1.4)
   const skillCalls = allToolCalls(run).filter(tc => tc.name === 'Skill' && tc.skill);
-  const routed = skillCalls.filter(tc => !isBlocked(tc));
-  const primary = routed[0]?.skill ?? null;
-  const aux = [];
-  const seen = new Set(primary ? [primary] : []);
-  for (const tc of routed.slice(1)) if (!seen.has(tc.skill)) { seen.add(tc.skill); aux.push(tc.skill); }
-  const triggered = new Set([primary, ...aux].filter(Boolean));
+  const distinct = collectRoutedSkills(run);   // primary + distinct aux, blocked calls excluded
+  const primary = distinct[0] ?? null;
+  const aux = distinct.slice(1);
+  const triggered = new Set(distinct);
 
   const anyPermissionArtifact = permissionArtifact != null
     ? permissionArtifact

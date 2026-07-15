@@ -439,6 +439,10 @@ export function buildQuestionList(exp) {
       n: tk.n ?? null,
       lowSample: tk.lowSample === true,
       degraded: tk.degraded === true,
+      // routing precision (soft): skills used beyond expected∪allowed. Does NOT affect hue (hue stays
+      // quality/composite) — over-routing is a separate amber signal, not a red mark.
+      routingExtras: tk.routingExtras ?? [],
+      overRouted: (tk.routingExtras?.length ?? 0) > 0,
       hue: scoreHue(composite, verdict === 'fail' ? false : null),
     });
   }

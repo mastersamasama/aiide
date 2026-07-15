@@ -12,7 +12,7 @@ import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { parseSessionJsonl, skillBodyCostEst } from './parser.js';
 import { computeRunMetrics, priceFor } from './metrics.js';
-import { scoreRepeat, scoreTask, scoreExperiment, evalVerifier, mean, gateC, graderClass, gradeSafety, gradeRouting } from './score.js';
+import { scoreRepeat, scoreTask, scoreExperiment, evalVerifier, mean, gateC, graderClass, gradeSafety, gradeRouting, routingExtras } from './score.js';
 import { loadSettings, resolveMeta, runCaptures, collectEnvironment, modelMismatch } from './meta.js';
 import { UPGRADE_CONFIG } from './upgradeConfig.js';
 import { buildExpStats, cliStats, proximityMatrix, resolveReps, toRefInventory } from './expstats.js';
@@ -1368,9 +1368,12 @@ async function buildRepeat({ res, task, suite, runtime = { type: 'claude-code' }
   // routing failure (0%) when routing was never possible, so L1 stays n/a (null) for those runtimes.
   const expSkill = expectedSkillOf(task);
   if (expSkill != null && (runtime.type ?? 'claude-code') === 'claude-code') {
-    const routing = gradeRouting(run, { expected_skill: expSkill, allowed_auxiliary: task.allowed_auxiliary ?? [] });
+    const routeCase = { expected_skill: expSkill, allowed_auxiliary: task.allowed_auxiliary ?? [] };
+    const routing = gradeRouting(run, routeCase);
     rep.routing = routing;
     rep.l1Pass = routing === 'permission-artifact' ? null : routing === 'correct';
+    // routing precision (soft): skills used beyond expected∪allowed — over-routing signal, never a fail.
+    rep.routingExtras = routingExtras(run, routeCase);
   }
   // prefer runtime-reported real cost over our estimate when available
   if (typeof res.output.total_cost_usd === 'number') rep.efficiency.costUsdReported = res.output.total_cost_usd;

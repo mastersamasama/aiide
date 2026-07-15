@@ -306,7 +306,7 @@ const I18N = {
     'task.drilldown': 'drill-down:', 'task.repeatsWord': 'repeats',
     'panel.taskRuns': 'task runs — what was asked & how it answered',
     'qov.hint': 'click a question for detail · red = wrong, greener = higher quality',
-    'qov.success': 'success', 'qov.act': 'activation',
+    'qov.success': 'success', 'qov.act': 'activation', 'qov.overRouted': 'over-routed:',
     'panel.diagnostics': 'deep diagnostics (runtime · context · stats · obs · health · metadata)',
     'task.checks': 'checks', 'task.repOf': 'shown:', 'task.noAnswer': 'no answer captured (all repeats excluded)',
     'th.activated': 'activated', 'th.verifiers': 'verifiers', 'th.wall': 'wall', 'th.error': 'error',
@@ -605,7 +605,7 @@ const I18N = {
     'task.drilldown': '下钻：', 'task.repeatsWord': '次重复',
     'panel.taskRuns': '任务运行 — 问了什么、答成怎样',
     'qov.hint': '点击问题查看详情 · 红=错，越绿质量越高',
-    'qov.success': '成功率', 'qov.act': '激活',
+    'qov.success': '成功率', 'qov.act': '激活', 'qov.overRouted': '多路由:',
     'panel.diagnostics': '深入诊断（runtime · context · 统计 · 观测 · 健康 · metadata）',
     'task.checks': '判定', 'task.repOf': '代表：', 'task.noAnswer': '本任务未捕获回答（重复均被排除）',
     'th.activated': '已触发', 'th.verifiers': '验证器', 'th.wall': '耗时', 'th.error': '错误',
@@ -1633,6 +1633,8 @@ function qovItem(q) {
   if (q.n != null) bits.push(`<span class="muted">n=${q.n}</span>`);
   if (q.lowSample) bits.push(`<span class="badge warn">${t('badge.lowSample')}</span>`);
   if (q.degraded) bits.push(`<span class="badge warn">${t('badge.degraded')}</span>`);
+  // routing precision (soft): used skills beyond expected∪allowed — informational amber, not a fail.
+  if (q.overRouted) bits.push(`<span class="badge warn">⚠ ${t('qov.overRouted')} ${fmt.esc(q.routingExtras.join(', '))}</span>`);
   return `<div class="qov-item" data-qid="${fmt.esc(q.id)}" onclick="selectQuestion(this)" style="border-left-color:${col}" title="${fmt.esc(q.label)}">
     <div class="qov-row1"><span class="qov-glyph" style="color:${col}">${glyph}</span><span class="qov-score" style="color:${col}">${score}</span><span class="qov-label">${fmt.esc(q.label)}</span></div>
     <div class="qov-row2">${bits.join('')}</div></div>`;

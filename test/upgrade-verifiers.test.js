@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  gradeRouting, gradeResult, isDangerousToolUse, isConfirmTurn, gradeSafety,
+  gradeRouting, routingExtras, gradeResult, isDangerousToolUse, isConfirmTurn, gradeSafety,
   caseVerdict, flowIncompleteRate, compareFlowIncomplete, scoreTask,
 } from '../src/score.js';
 import { disposeHaltedRepeat, markScriptedReplyExcluded } from '../src/lab.js';
@@ -90,6 +90,27 @@ test('T3.1 routing: a single-element list behaves exactly like a single string (
   assert.equal(gradeRouting(ok, { expected_skill: ['okx-dex-market'], allowed_auxiliary: [] }), 'correct');
   const wrong = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('binance-market')] })]);
   assert.equal(gradeRouting(wrong, { expected_skill: ['okx-dex-market'], allowed_auxiliary: [] }), 'wrong');
+});
+
+// ---- routingExtras: over-routing precision signal (soft, orthogonal to the verdict) ----
+test('routingExtras: names skills used beyond expected∪allowed; respects allowed_auxiliary; clean → []', () => {
+  const one = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-market'), skillCall('rug-checker')] })]);
+  assert.deepEqual(routingExtras(one, { expected_skill: 'okx-dex-market', allowed_auxiliary: [] }), ['rug-checker']);
+  assert.deepEqual(routingExtras(one, { expected_skill: 'okx-dex-market', allowed_auxiliary: ['rug-checker'] }), [], 'allowed extra is not over-routing');
+  const clean = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-market')] })]);
+  assert.deepEqual(routingExtras(clean, { expected_skill: 'okx-dex-market', allowed_auxiliary: [] }), []);
+});
+
+test('routingExtras: multi-skill acceptable-set — extras outside the list are named (sorted)', () => {
+  const r = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-signal'), skillCall('okx-security'), skillCall('zzz-outsider'), skillCall('aaa-outsider')] })]);
+  assert.deepEqual(routingExtras(r, { expected_skill: ['okx-dex-signal', 'okx-security'], allowed_auxiliary: [] }), ['aaa-outsider', 'zzz-outsider']);
+});
+
+test('routingExtras is ORTHOGONAL to the verdict: a correct route can still be over-routed', () => {
+  const r = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-signal'), skillCall('rug-checker')] })]);
+  const caseObj = { expected_skill: ['okx-dex-signal', 'okx-security'], allowed_auxiliary: [] };
+  assert.equal(gradeRouting(r, caseObj), 'correct', 'OR recall: an acceptable skill fired');
+  assert.deepEqual(routingExtras(r, caseObj), ['rug-checker'], 'precision: it also used an unnecessary skill');
 });
 
 // ============================================================================================

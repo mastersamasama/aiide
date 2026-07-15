@@ -1391,6 +1391,23 @@ test('buildQuestionList: attention-first sort, per-question metrics, hue, verdic
   assert.equal(list.find(i => i.id === 'good').hue, Math.round(0.95 * 120), 'pass hue from composite');
 });
 
+test('buildQuestionList: surfaces overRouted/routingExtras (soft, independent of hue/verdict)', () => {
+  const exp = { tasks: {
+    over: { prompt: 'q', expected_skill: 'skill.a', composite: 0.95, C: 1, n: 1, routingExtras: ['skill.x', 'skill.y'] },
+    clean: { prompt: 'q2', expected_skill: 'skill.a', composite: 0.9, C: 1, n: 1, routingExtras: [] },
+    naRoute: { prompt: 'q3', composite: 0.8, C: 1, n: 1 },   // no routing grade (n/a)
+  } };
+  const list = buildQuestionList(exp);
+  const over = list.find(i => i.id === 'over');
+  assert.equal(over.overRouted, true);
+  assert.deepEqual(over.routingExtras, ['skill.x', 'skill.y']);
+  assert.equal(over.verdict, 'pass', 'over-routing does not change the pass verdict');
+  assert.equal(over.hue, Math.round(0.95 * 120), 'over-routing does not change the quality hue');
+  assert.equal(list.find(i => i.id === 'clean').overRouted, false);
+  assert.equal(list.find(i => i.id === 'naRoute').overRouted, false);
+  assert.deepEqual(list.find(i => i.id === 'naRoute').routingExtras, []);
+});
+
 test('buildQuestionList: compositePartial fallback, null composite sorts last with null hue', () => {
   const exp = { tasks: {
     a: { prompt: 'a', C: 1, compositePartial: 0.8 },      // no composite → falls back to compositePartial

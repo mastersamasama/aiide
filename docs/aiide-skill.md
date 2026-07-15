@@ -90,11 +90,11 @@ version. `aiide up` is read-only (only exception: the annotations sidecar PUT). 
 The upgrade pipeline compares two whole skill bundles (a **new** arm vs an **old** arm) on an
 identical, case-id-paired dataset and emits an **adoption verdict** plus the evidence behind it.
 Authoritative design (thresholds, statistics, rationale) lives in
-`../../docs/onchainos-upgrade-pipeline-design.md` (§1 stage 4, §2.2 verdict, §3 dual-audience report,
+`docs/onchainos-upgrade-pipeline-design.md` (§1 stage 4, §2.2 verdict, §3 dual-audience report,
 §5 spec table U4/U7/U8) — read that, not this file, for algorithm detail; this section is the AX
-contract. The Wave 0 probe reports (`../../docs/wave0-probe-report.md`) are the U0/U2/U3 factual
-attachments the design cites. (Both docs live at the **repo-root `docs/`**, not `aiide/docs/` — the
-paths above are relative to this file.)
+contract. The Wave 0 probe reports (`docs/wave0-probe-report.md`) are the U0/U2/U3 factual
+attachments the design cites. (Both paths are repo-root-relative — the docs sit next to this file
+in `docs/`.)
 
 ### `aiide upgrade` subcommands
 

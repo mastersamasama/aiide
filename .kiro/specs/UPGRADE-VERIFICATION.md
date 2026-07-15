@@ -24,15 +24,16 @@
 >   contended file to avoid clobbering, then **proved the reconciliation end-to-end with real
 >   artifacts** (see Integration e2e below). Adjudication: **flat/canonical is correct** (aligns U8
 >   consumers + §AX). Now cohesive on both sides.
-> - **F-2 (U8 R8.3.1/R8.3.2 — reference-path clarity, FIXED).** `aiide/docs/aiide-skill.md` cited the
->   authoritative design (`onchainos-upgrade-pipeline-design.md`) and Wave-0 probe report as `docs/…`,
->   which does not resolve from `aiide/docs/`. The files **do exist** at the **repo-root** `docs/`
->   (`../../docs/` relative to the skill file) — my first pass searched only the `aiide/` subtree (cwd)
->   and wrongly reported them absent. **Fixed:** rewrote both refs to `../../docs/onchainos-upgrade-pipeline-design.md`
->   and `../../docs/wave0-probe-report.md` with a parenthetical "(repo-root `docs/`, not `aiide/docs/`)".
->   No guard test added (the targets live outside `aiide/`; a test would bind aiide to the monorepo layout).
-> - **F-3 (ixd Appendix D handoff — VERIFIED).** `docs/ixd/phase8-document.md` exists at repo root
->   (also my earlier miss). Appendix D (§D "開發交接注意事項", lines 221–236) handoff map is **consistent
+> - **F-2 (U8 R8.3.1/R8.3.2 — reference-path clarity, FIXED).** `docs/aiide-skill.md` cited the
+>   authoritative design (`onchainos-upgrade-pipeline-design.md`) and Wave-0 probe report via
+>   monorepo-relative `../../docs/…` paths that escape the repo when aiide is published standalone.
+>   **Fixed:** both design authorities are now shipped in-repo at `docs/onchainos-upgrade-pipeline-design.md`
+>   and `docs/wave0-probe-report.md`, and the skill refs were rewritten to those repo-root-relative
+>   paths (matching the project's `src/…`/`docs/…` backtick convention). Every design-authority link
+>   now resolves inside the published repo.
+> - **F-3 (ixd Appendix D handoff — VERIFIED).** Source: the IxD Phase-8 delivery doc (internal IxD
+>   deliverable archived in the monorepo IxD suite, not shipped in this OSS repo). Its Appendix D
+>   (§D "開發交接注意事項", lines 221–236) handoff map is **consistent
 >   with the implementation**: S1 verdict→**U4** (`src/upgradeVerdict.js` four-state + BH + 12% tripwire);
 >   S2 L1/L2/L3 + flow-incomplete denom→**U3** (`src/score.js`, denom incl. excluded); S3 bootstrap CI→**U4**
 >   (`pairedBootstrapCI` mean/ci/n/seed); S4 graph/heatmap/sankey/break-even→**U5** (`src/depgraph.js`);
@@ -160,8 +161,8 @@ new-dir immutability / no-prev graceful). **All PASS.**
 | R8.1.1 AX documents CLI + schema keys + grep convention | `docs/aiide-skill.md:97–131` (CLI table, canonical §110 schema keys, report.md grep contract) — content present & correct | PASS (doc) |
 | R8.1.2 AX documents 5-state semantics + insufficient/inconclusive≠parity | `docs/aiide-skill.md:135–146` (verdict table + "Hard rule for AI consumers: insufficient-data/inconclusive **never** mean 持平/可採") | PASS (doc) |
 | R8.1.3 AX states governance neutrality | `docs/aiide-skill.md:148–154` ("adoption is always a human decision … Neither the CLI nor the dashboard offers any auto-adopt/rewrite action") | PASS (doc) |
-| R8.3.1 docs reference authoritative design doc | `docs/aiide-skill.md:92–95` → `../../docs/onchainos-upgrade-pipeline-design.md` (197 lines, exists at repo root; path fixed — F-2) | PASS |
-| R8.3.2 docs mark Wave 0 probe as U0/U2/U3 attachment | `docs/aiide-skill.md:95` → `../../docs/wave0-probe-report.md` (156 lines, exists at repo root; path fixed — F-2) | PASS |
+| R8.3.1 docs reference authoritative design doc | `docs/aiide-skill.md:92–95` → `docs/onchainos-upgrade-pipeline-design.md` (shipped in-repo; path fixed — F-2) | PASS |
+| R8.3.2 docs mark Wave 0 probe as U0/U2/U3 attachment | `docs/aiide-skill.md:95` → `docs/wave0-probe-report.md` (156 lines, shipped in-repo; path fixed — F-2) | PASS |
 
 ## Tally
 

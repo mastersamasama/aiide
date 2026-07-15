@@ -1137,7 +1137,10 @@
       "category": "portfolio",
       "difficulty": "L3",
       "lang": "zh",
-      "expected_skill": "okx-wallet-portfolio",
+      "expected_skill": [
+        "okx-wallet-portfolio",
+        "okx-agentic-wallet"
+      ],
       "targetSkills": [
         "okx-wallet-portfolio",
         "okx-dex-market",
@@ -1207,7 +1210,11 @@
       "category": "intel",
       "difficulty": "L3",
       "lang": "en",
-      "expected_skill": "okx-dex-signal",
+      "expected_skill": [
+        "okx-dex-signal",
+        "okx-security",
+        "okx-dex-token"
+      ],
       "targetSkills": [
         "okx-dex-signal",
         "okx-dex-token",

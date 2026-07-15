@@ -338,7 +338,12 @@ function allToolCalls(run) {
 // allowed_auxiliary co-triggers never count as false_positive; a permission-blocked route is separated
 // from a genuine miss so it never pollutes the routing denominator (R3.1.4).
 export function gradeRouting(run, caseObj = {}, { permissionArtifact = null } = {}) {
-  const expected = caseObj.expected_skill ?? null;
+  // expected_skill is EITHER a single skill (exact-match semantics) OR a list of ACCEPTABLE skills.
+  // A compound question can be answered via any of several overlapping skills, so a list means
+  // "route-correct = AT LEAST ONE of the listed skills fired" (order irrelevant, extras fine) —
+  // requiring a specific one would slander correct, thorough routing as 'wrong'/'false_positive'.
+  const raw = caseObj.expected_skill ?? null;
+  const expectedList = raw == null ? [] : (Array.isArray(raw) ? raw.filter(Boolean) : [raw]);
   const allowed = new Set(caseObj.allowed_auxiliary ?? []);
   const isBlocked = (tc) => classifyToolResult(tc) === 'permission-artifact';
 
@@ -349,17 +354,32 @@ export function gradeRouting(run, caseObj = {}, { permissionArtifact = null } = 
   const aux = [];
   const seen = new Set(primary ? [primary] : []);
   for (const tc of routed.slice(1)) if (!seen.has(tc.skill)) { seen.add(tc.skill); aux.push(tc.skill); }
+  const triggered = new Set([primary, ...aux].filter(Boolean));
 
-  const expectedBlocked = expected != null && skillCalls.some(tc => tc.skill === expected && isBlocked(tc));
   const anyPermissionArtifact = permissionArtifact != null
     ? permissionArtifact
     : allToolCalls(run).some(isBlocked);
 
   // negative case (no expected skill): any non-allowed trigger is a false_positive; none → correct.
-  if (!expected) {
-    const extras = [primary, ...aux].filter(s => s && !allowed.has(s));
+  if (expectedList.length === 0) {
+    const extras = [...triggered].filter(s => !allowed.has(s));
     return extras.length ? 'false_positive' : 'correct';
   }
+
+  // multi-skill expectation → the list is a set of ACCEPTABLE skills; routing is correct if the agent
+  // used AT LEAST ONE of them (a compound question can be answered via any of several overlapping
+  // skills, so requiring a specific one — or all — would slander correct routing). Extras are fine;
+  // only firing NONE of the acceptable skills is a miss. All skills that actually triggered are
+  // recorded on the case's triggerSet (stats.depgraphSessions) as routing evidence.
+  if (expectedList.length > 1) {
+    if (expectedList.some(s => triggered.has(s))) return 'correct';
+    const blocked = expectedList.some(s => skillCalls.some(tc => tc.skill === s && isBlocked(tc)));
+    return (blocked || anyPermissionArtifact) ? 'permission-artifact' : 'missed';
+  }
+
+  // single-skill expectation → exact match (unchanged semantics).
+  const expected = expectedList[0];
+  const expectedBlocked = skillCalls.some(tc => tc.skill === expected && isBlocked(tc));
   if (primary === expected) {
     const extras = aux.filter(s => s !== expected && !allowed.has(s));
     return extras.length ? 'false_positive' : 'correct';

@@ -71,7 +71,7 @@ export function experimentToArm(exp) {
     const det = caseDetail.get(id);
     const rep0 = (tk.repeats ?? []).find((r) => r.excluded !== true) ?? (tk.repeats ?? [])[0] ?? {};
     cases[id] = {
-      skill: tk.expected_skill ?? null,
+      skill: Array.isArray(tk.expected_skill) ? (tk.expected_skill[0] ?? null) : (tk.expected_skill ?? null),  // multi-skill → primary for per-skill grouping
       category: tk.category ?? 'uncategorized',
       prompt: tk.prompt ?? '',
       repeats,

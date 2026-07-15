@@ -68,6 +68,30 @@ test('T3.1/R3.1.1 routing negative case: no expected + no trigger → correct; u
   assert.equal(gradeRouting(fired, { expected_skill: null, allowed_auxiliary: [] }), 'false_positive');
 });
 
+// ---- multi-skill expected_skill (compound question → list = ACCEPTABLE set, "at least one fired = pass") ----
+test('T3.1 routing multi-skill: expected LIST is an acceptable-set — ANY one triggered → correct', () => {
+  // only 1 of the 3 acceptable skills fired → still correct (the question can be answered via any).
+  const r = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-signal')] })]);
+  assert.equal(gradeRouting(r, { expected_skill: ['okx-dex-signal', 'okx-security', 'okx-dex-token'], allowed_auxiliary: [] }), 'correct');
+});
+
+test('T3.1 routing multi-skill: NONE of the acceptable skills fired → missed', () => {
+  const r = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('binance-market')] })]);
+  assert.equal(gradeRouting(r, { expected_skill: ['okx-dex-signal', 'okx-security', 'okx-dex-token'], allowed_auxiliary: [] }), 'missed');
+});
+
+test('T3.1 routing multi-skill: extra skills beyond the acceptable list are fine (no false_positive)', () => {
+  const r = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-signal'), skillCall('rug-checker')] })]);
+  assert.equal(gradeRouting(r, { expected_skill: ['okx-dex-signal', 'okx-security'], allowed_auxiliary: [] }), 'correct');
+});
+
+test('T3.1 routing: a single-element list behaves exactly like a single string (exact match preserved)', () => {
+  const ok = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('okx-dex-market')] })]);
+  assert.equal(gradeRouting(ok, { expected_skill: ['okx-dex-market'], allowed_auxiliary: [] }), 'correct');
+  const wrong = run([round({ stopReason: 'tool_use', toolCalls: [skillCall('binance-market')] })]);
+  assert.equal(gradeRouting(wrong, { expected_skill: ['okx-dex-market'], allowed_auxiliary: [] }), 'wrong');
+});
+
 // ============================================================================================
 // T3.2 — L2 result over the FINAL flow (R3.2)
 // ============================================================================================

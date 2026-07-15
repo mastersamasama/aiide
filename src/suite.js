@@ -209,7 +209,7 @@ function failCase(caseId, msg, code) {
   throw e;
 }
 
-const REQUIRED_STRINGS = ['id', 'prompt', 'expected_skill', 'category', 'added_in'];
+const REQUIRED_STRINGS = ['id', 'prompt', 'category', 'added_in'];
 
 /** Validate one case against R1.1 schema; throws with `case <id>: <field>…` on any violation. */
 export function validateCase(caseObj, index) {
@@ -224,6 +224,13 @@ export function validateCase(caseObj, index) {
       failCase(id, `missing/invalid "${f}" (expected non-empty string)`, 'missing-field');
   }
   const isStrArray = v => Array.isArray(v) && v.every(s => typeof s === 'string');
+  // expected_skill: a non-empty string (single-skill exact match) OR a non-empty string array
+  // (multi-skill compound question → route-correct = all listed skills fired).
+  const es = caseObj.expected_skill;
+  const esOk = (typeof es === 'string' && es !== '')
+    || (isStrArray(es) && es.length > 0 && es.every(s => s !== ''));
+  if (!esOk)
+    failCase(id, `missing/invalid "expected_skill" (non-empty string, or non-empty array of skills for a compound question)`, 'missing-field');
   if (!isStrArray(caseObj.allowed_auxiliary))
     failCase(id, `"allowed_auxiliary" must be an array of strings (empty allowed)`, 'invalid-field');
   if (!isStrArray(caseObj.multi_intent))
@@ -370,10 +377,17 @@ export function heldOut(suite) {
 
 /** R1.6 — per-skill coverage. Any skill with < MIN_PAIRS_SKILL cases → actionable warning carrying
  *  {skill, currentN, target, needMore} [PM-B6]. */
+// expected_skill is a string (single) or an array (multi-skill compound question) — normalize to a list.
+export function expectedSkillList(c) {
+  const es = c?.expected_skill;
+  return es == null ? [] : (Array.isArray(es) ? es.filter(Boolean) : [es]);
+}
+
 export function lintSkillCoverage(suite, config = UPGRADE_CONFIG) {
   const target = config.verdict.MIN_PAIRS_SKILL;
   const counts = new Map();
-  for (const c of casesOf(suite)) counts.set(c.expected_skill, (counts.get(c.expected_skill) || 0) + 1);
+  // a multi-skill case counts toward EACH of its expected skills' coverage.
+  for (const c of casesOf(suite)) for (const s of expectedSkillList(c)) counts.set(s, (counts.get(s) || 0) + 1);
   const findings = [];
   for (const [skill, currentN] of [...counts].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     if (currentN < target)
@@ -414,10 +428,11 @@ export function lintSmokeTierSize(suite, config = UPGRADE_CONFIG) {
 export function lintAuxiliaryRedundancy(suite) {
   const findings = [];
   for (const c of casesOf(suite)) {
-    if (Array.isArray(c.allowed_auxiliary) && c.allowed_auxiliary.includes(c.expected_skill))
-      findings.push({ level: 'warning', code: 'redundant-auxiliary', id: c.id, skill: c.expected_skill,
-        message: `case "${c.id}": allowed_auxiliary lists expected_skill "${c.expected_skill}" `
-          + `(redundant) [R1.EB1]` });
+    if (!Array.isArray(c.allowed_auxiliary)) continue;
+    const redundant = expectedSkillList(c).filter(s => c.allowed_auxiliary.includes(s));
+    for (const skill of redundant)
+      findings.push({ level: 'warning', code: 'redundant-auxiliary', id: c.id, skill,
+        message: `case "${c.id}": allowed_auxiliary lists expected_skill "${skill}" (redundant) [R1.EB1]` });
   }
   return findings;
 }

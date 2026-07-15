@@ -17,6 +17,10 @@ import { join } from 'node:path';
 import { collectSessionEvents, attributeRead, SKILL_READ_RE, depgraphReport } from './depgraph.js';
 import { depgraphToCharts } from './report.js';
 import { classifyToolResult } from './parser.js';
+// expected_skill may be a single skill or a multi-skill list (compound question). Coverage stats key
+// on a single skill, so they use the PRIMARY (first) skill — a documented simplification; the full
+// multi-skill semantics live in gradeRouting's L1 "all-must-trigger" grade, not in coverage.
+const primarySkill = (x) => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
 // §3.2 toolUsage: the toolCall `kind` closed set lives with the other adapter schema value-domain
 // constants (adaptercheck.js is the shared single-source home — check and stats can never drift).
 import { TOOL_KINDS } from './adaptercheck.js';
@@ -1011,7 +1015,7 @@ export function buildExpStats({
     if (!caseMap.has(caseId)) {
       const t = tasks[caseId] ?? {};
       caseMap.set(caseId, {
-        caseId, expected_skill: t.expected_skill ?? null, category: t.category ?? null,
+        caseId, expected_skill: primarySkill(t.expected_skill), category: t.category ?? null,
         held_out: t.held_out === true, triggerSet: new Set(), primarySet: new Set(),
         readCounts: {}, runs: [],
       });
@@ -1067,7 +1071,7 @@ export function buildExpStats({
   for (const v of buckets.valid) {
     const rec = attemptedByTask.get(v.taskId) ?? { attempted: 0, triggered: 0 };
     rec.attempted += 1;
-    const expected = tasks[v.taskId]?.expected_skill ?? null;
+    const expected = primarySkill(tasks[v.taskId]?.expected_skill);
     const fired = expected && v.runs.some((run) => collectSessionEvents(run, { id: v.taskId }, { probes }).triggerSet.includes(expected));
     if (fired) rec.triggered += 1;
     attemptedByTask.set(v.taskId, rec);
@@ -1080,7 +1084,7 @@ export function buildExpStats({
   for (const [taskId, task] of Object.entries(tasks ?? {})) {
     if (task?.held_out === true) continue;
     const rec = attemptedByTask.get(taskId) ?? { attempted: 0, triggered: 0 };
-    taskInfo[taskId] = { expected_skill: task?.expected_skill ?? null, held_out: false, attempted: rec.attempted, triggered: rec.triggered };
+    taskInfo[taskId] = { expected_skill: primarySkill(task?.expected_skill), held_out: false, attempted: rec.attempted, triggered: rec.triggered };
   }
 
   // excluded-run and artifact (blocked) reads for M2 exemptions

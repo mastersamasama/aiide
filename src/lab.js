@@ -916,7 +916,7 @@ export async function runSuite({
 
   // one agent invocation with the S2 env-noise retry loop. `cleanWorkspace` is false for multi-step
   // steps, which must share (not wipe) the workspace so a later step can consume an earlier artifact.
-  async function attemptInvocation({ workspaceDir, verifyDir, prompt, verifiers, targetSkills, taskId, repeat, step, cleanWorkspace }) {
+  async function attemptInvocation({ workspaceDir, verifyDir, prompt, verifiers, targetSkills, expected_skill = null, allowed_auxiliary = [], taskId, repeat, step, cleanWorkspace }) {
     const maxRetries = suite.retry?.maxRetries ?? 2;
     const baseDelayMs = suite.retry?.baseDelayMs ?? 1000;
     let rep, res = null, noise = null;
@@ -938,7 +938,7 @@ export async function runSuite({
               timeoutMs: suite.timeoutMs ?? 300_000, suiteDir,
               extraEnv: service ? { AIIDE_SERVICE_URL: service.serviceUrl } : {},
             });
-        rep = await buildRepeat({ res, task: { id: taskId, prompt, verifiers, targetSkills }, suite, runtime, profileDir, dataDir, expId, repeat, step, pricing, verifyDir, onWarn: (w) => obsWarnings.push(w),
+        rep = await buildRepeat({ res, task: { id: taskId, prompt, verifiers, targetSkills, expected_skill, allowed_auxiliary }, suite, runtime, profileDir, dataDir, expId, repeat, step, pricing, verifyDir, onWarn: (w) => obsWarnings.push(w),
           probes, judge, writeOps, authority });
       } catch (err) {
         rep = { runId: null, C: 0, P: 0, H: 0, activated: false, verifierResults: [], rounds: 0, efficiency: EMPTY_EFFICIENCY, error: String(err) };
@@ -971,7 +971,9 @@ export async function runSuite({
       const step = task.steps[s];
       const { rep, res, noise } = await attemptInvocation({
         workspaceDir, verifyDir, prompt: resolvePromptVars(step.prompt, suite.vars), verifiers: step.verifiers ?? [],
-        targetSkills: step.targetSkills, taskId: task.id, repeat, step: s + 1, cleanWorkspace: false,
+        targetSkills: step.targetSkills, expected_skill: step.expected_skill ?? task.expected_skill ?? null,
+        allowed_auxiliary: step.allowed_auxiliary ?? task.allowed_auxiliary ?? [],
+        taskId: task.id, repeat, step: s + 1, cleanWorkspace: false,
       });
       lastRes = res;
       const vr = rep.verifierResults ?? [];
@@ -1117,7 +1119,8 @@ export async function runSuite({
       } else {
         const r = await attemptInvocation({
           workspaceDir, verifyDir, prompt, verifiers: task.verifiers ?? [],
-          targetSkills: task.targetSkills, taskId: task.id, repeat: i, cleanWorkspace: true,
+          targetSkills: task.targetSkills, expected_skill: task.expected_skill ?? null, allowed_auxiliary: task.allowed_auxiliary ?? [],
+          taskId: task.id, repeat: i, cleanWorkspace: true,
         });
         res = r.res;
         rep = r.noise ? { ...r.rep, excluded: true, excludedSignature: r.noise } : r.rep;

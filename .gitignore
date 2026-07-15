@@ -15,3 +15,6 @@ node_modules/
 Thumbs.db
 *.log
 --full-page
+
+# tooling artifacts (oki-team plugin state)
+.oki-team/
